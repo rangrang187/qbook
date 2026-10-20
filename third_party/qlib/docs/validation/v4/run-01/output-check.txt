@@ -1,0 +1,1 @@
+exit=0; stdout: 8 lines, 3 columns, no header; exactly one row per container/workload; all values finite and nonnegative; stderr exactly sink=3000009000000; source manifest unchanged.

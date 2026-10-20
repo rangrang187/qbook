@@ -1,0 +1,11 @@
+{
+  "command": "./build-v4-release/tests/map_bench",
+  "cwd": "/tmp/qlib-v4-cH5kd8",
+  "start_utc": "2026-10-19T13:39:27.006297+00:00",
+  "end_utc": "2026-10-19T13:39:28.630968+00:00",
+  "exit": 0,
+  "code_state": "qlib-v4-20261020",
+  "source_manifest_sha256": "54ddb8564df8301a5303e868bc42a699f4d8fc33327b01d84f06b52a6bd569cb",
+  "benchmark_binary_sha256": "20b3e0bbc183e05889232f8559ffa02a3531f1f1560eed13602746f9666a9d15",
+  "conditions": "Release; no concurrent build, stress test, sanitizer or other high-load check from this task; no affinity; ordinary WSL2 environment"
+}

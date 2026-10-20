@@ -1,0 +1,208 @@
+【归档说明】项目名称已统一为 qlib；旧绝对路径已替换为 <project-root>。
+
+$ cmake --build build-v0-release --parallel --verbose
+Change Dir: '<project-root>/build-v0-release'
+
+Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile -j
+/usr/bin/cmake -S<project-root> -B<project-root>/build-v0-release --check-build-system CMakeFiles/Makefile.cmake 0
+/usr/bin/cmake -E cmake_progress_start <project-root>/build-v0-release/CMakeFiles <project-root>/build-v0-release//CMakeFiles/progress.marks
+/usr/bin/gmake  -f CMakeFiles/Makefile2 all
+gmake[1]: Entering directory '<project-root>/build-v0-release'
+/usr/bin/gmake  -f _deps/googletest-build/googletest/CMakeFiles/gtest.dir/build.make _deps/googletest-build/googletest/CMakeFiles/gtest.dir/depend
+gmake[2]: Entering directory '<project-root>/build-v0-release'
+cd <project-root>/build-v0-release && /usr/bin/cmake -E cmake_depends "Unix Makefiles" <project-root> <project-root>/build-v0-release/_deps/googletest-src/googletest <project-root>/build-v0-release <project-root>/build-v0-release/_deps/googletest-build/googletest <project-root>/build-v0-release/_deps/googletest-build/googletest/CMakeFiles/gtest.dir/DependInfo.cmake "--color="
+gmake[2]: Leaving directory '<project-root>/build-v0-release'
+/usr/bin/gmake  -f _deps/googletest-build/googletest/CMakeFiles/gtest.dir/build.make _deps/googletest-build/googletest/CMakeFiles/gtest.dir/build
+gmake[2]: Entering directory '<project-root>/build-v0-release'
+[ 10%] Building CXX object _deps/googletest-build/googletest/CMakeFiles/gtest.dir/src/gtest-all.cc.o
+cd <project-root>/build-v0-release/_deps/googletest-build/googletest && /usr/bin/c++  -I<project-root>/build-v0-release/_deps/googletest-src/googletest/include -I<project-root>/build-v0-release/_deps/googletest-src/googletest -O3 -DNDEBUG -std=c++23 -Wall -Wshadow -Wundef -Wno-error=dangling-else -DGTEST_HAS_PTHREAD=1 -fexceptions -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -MD -MT _deps/googletest-build/googletest/CMakeFiles/gtest.dir/src/gtest-all.cc.o -MF CMakeFiles/gtest.dir/src/gtest-all.cc.o.d -o CMakeFiles/gtest.dir/src/gtest-all.cc.o -c <project-root>/build-v0-release/_deps/googletest-src/googletest/src/gtest-all.cc
+[ 20%] Linking CXX static library ../../../lib/libgtest.a
+cd <project-root>/build-v0-release/_deps/googletest-build/googletest && /usr/bin/cmake -P CMakeFiles/gtest.dir/cmake_clean_target.cmake
+cd <project-root>/build-v0-release/_deps/googletest-build/googletest && /usr/bin/cmake -E cmake_link_script CMakeFiles/gtest.dir/link.txt --verbose=1
+/usr/bin/ar qc ../../../lib/libgtest.a "CMakeFiles/gtest.dir/src/gtest-all.cc.o"
+/usr/bin/raqlib ../../../lib/libgtest.a
+gmake[2]: Leaving directory '<project-root>/build-v0-release'
+[ 20%] Built target gtest
+/usr/bin/gmake  -f _deps/googletest-build/googletest/CMakeFiles/gtest_main.dir/build.make _deps/googletest-build/googletest/CMakeFiles/gtest_main.dir/depend
+/usr/bin/gmake  -f _deps/googletest-build/googlemock/CMakeFiles/gmock.dir/build.make _deps/googletest-build/googlemock/CMakeFiles/gmock.dir/depend
+gmake[2]: Entering directory '<project-root>/build-v0-release'
+cd <project-root>/build-v0-release && /usr/bin/cmake -E cmake_depends "Unix Makefiles" <project-root> <project-root>/build-v0-release/_deps/googletest-src/googlemock <project-root>/build-v0-release <project-root>/build-v0-release/_deps/googletest-build/googlemock <project-root>/build-v0-release/_deps/googletest-build/googlemock/CMakeFiles/gmock.dir/DependInfo.cmake "--color="
+gmake[2]: Entering directory '<project-root>/build-v0-release'
+cd <project-root>/build-v0-release && /usr/bin/cmake -E cmake_depends "Unix Makefiles" <project-root> <project-root>/build-v0-release/_deps/googletest-src/googletest <project-root>/build-v0-release <project-root>/build-v0-release/_deps/googletest-build/googletest <project-root>/build-v0-release/_deps/googletest-build/googletest/CMakeFiles/gtest_main.dir/DependInfo.cmake "--color="
+gmake[2]: Leaving directory '<project-root>/build-v0-release'
+/usr/bin/gmake  -f _deps/googletest-build/googlemock/CMakeFiles/gmock.dir/build.make _deps/googletest-build/googlemock/CMakeFiles/gmock.dir/build
+gmake[2]: Leaving directory '<project-root>/build-v0-release'
+/usr/bin/gmake  -f _deps/googletest-build/googletest/CMakeFiles/gtest_main.dir/build.make _deps/googletest-build/googletest/CMakeFiles/gtest_main.dir/build
+gmake[2]: Entering directory '<project-root>/build-v0-release'
+gmake[2]: Entering directory '<project-root>/build-v0-release'
+[ 40%] Building CXX object _deps/googletest-build/googletest/CMakeFiles/gtest_main.dir/src/gtest_main.cc.o
+cd <project-root>/build-v0-release/_deps/googletest-build/googletest && /usr/bin/c++  -isystem <project-root>/build-v0-release/_deps/googletest-src/googletest/include -isystem <project-root>/build-v0-release/_deps/googletest-src/googletest -O3 -DNDEBUG -std=c++23 -Wall -Wshadow -Wundef -Wno-error=dangling-else -DGTEST_HAS_PTHREAD=1 -fexceptions -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -MD -MT _deps/googletest-build/googletest/CMakeFiles/gtest_main.dir/src/gtest_main.cc.o -MF CMakeFiles/gtest_main.dir/src/gtest_main.cc.o.d -o CMakeFiles/gtest_main.dir/src/gtest_main.cc.o -c <project-root>/build-v0-release/_deps/googletest-src/googletest/src/gtest_main.cc
+[ 40%] Building CXX object _deps/googletest-build/googlemock/CMakeFiles/gmock.dir/src/gmock-all.cc.o
+cd <project-root>/build-v0-release/_deps/googletest-build/googlemock && /usr/bin/c++  -I<project-root>/build-v0-release/_deps/googletest-src/googlemock/include -I<project-root>/build-v0-release/_deps/googletest-src/googlemock -isystem <project-root>/build-v0-release/_deps/googletest-src/googletest/include -isystem <project-root>/build-v0-release/_deps/googletest-src/googletest -O3 -DNDEBUG -std=c++23 -Wall -Wshadow -Wundef -Wno-error=dangling-else -DGTEST_HAS_PTHREAD=1 -fexceptions -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -MD -MT _deps/googletest-build/googlemock/CMakeFiles/gmock.dir/src/gmock-all.cc.o -MF CMakeFiles/gmock.dir/src/gmock-all.cc.o.d -o CMakeFiles/gmock.dir/src/gmock-all.cc.o -c <project-root>/build-v0-release/_deps/googletest-src/googlemock/src/gmock-all.cc
+[ 50%] Linking CXX static library ../../../lib/libgtest_main.a
+cd <project-root>/build-v0-release/_deps/googletest-build/googletest && /usr/bin/cmake -P CMakeFiles/gtest_main.dir/cmake_clean_target.cmake
+cd <project-root>/build-v0-release/_deps/googletest-build/googletest && /usr/bin/cmake -E cmake_link_script CMakeFiles/gtest_main.dir/link.txt --verbose=1
+/usr/bin/ar qc ../../../lib/libgtest_main.a CMakeFiles/gtest_main.dir/src/gtest_main.cc.o
+/usr/bin/raqlib ../../../lib/libgtest_main.a
+gmake[2]: Leaving directory '<project-root>/build-v0-release'
+[ 50%] Built target gtest_main
+/usr/bin/gmake  -f tests/CMakeFiles/common_test.dir/build.make tests/CMakeFiles/common_test.dir/depend
+gmake[2]: Entering directory '<project-root>/build-v0-release'
+cd <project-root>/build-v0-release && /usr/bin/cmake -E cmake_depends "Unix Makefiles" <project-root> <project-root>/tests <project-root>/build-v0-release <project-root>/build-v0-release/tests <project-root>/build-v0-release/tests/CMakeFiles/common_test.dir/DependInfo.cmake "--color="
+gmake[2]: Leaving directory '<project-root>/build-v0-release'
+/usr/bin/gmake  -f tests/CMakeFiles/common_test.dir/build.make tests/CMakeFiles/common_test.dir/build
+gmake[2]: Entering directory '<project-root>/build-v0-release'
+[ 60%] Building CXX object tests/CMakeFiles/common_test.dir/common_test.cpp.o
+cd <project-root>/build-v0-release/tests && /usr/bin/c++  -I<project-root>/include -isystem <project-root>/build-v0-release/_deps/googletest-src/googletest/include -isystem <project-root>/build-v0-release/_deps/googletest-src/googletest -O3 -DNDEBUG -std=c++23 -MD -MT tests/CMakeFiles/common_test.dir/common_test.cpp.o -MF CMakeFiles/common_test.dir/common_test.cpp.o.d -o CMakeFiles/common_test.dir/common_test.cpp.o -c <project-root>/tests/common_test.cpp
+[ 70%] Linking CXX static library ../../../lib/libgmock.a
+cd <project-root>/build-v0-release/_deps/googletest-build/googlemock && /usr/bin/cmake -P CMakeFiles/gmock.dir/cmake_clean_target.cmake
+cd <project-root>/build-v0-release/_deps/googletest-build/googlemock && /usr/bin/cmake -E cmake_link_script CMakeFiles/gmock.dir/link.txt --verbose=1
+/usr/bin/ar qc ../../../lib/libgmock.a "CMakeFiles/gmock.dir/src/gmock-all.cc.o"
+/usr/bin/raqlib ../../../lib/libgmock.a
+gmake[2]: Leaving directory '<project-root>/build-v0-release'
+[ 70%] Built target gmock
+/usr/bin/gmake  -f _deps/googletest-build/googlemock/CMakeFiles/gmock_main.dir/build.make _deps/googletest-build/googlemock/CMakeFiles/gmock_main.dir/depend
+gmake[2]: Entering directory '<project-root>/build-v0-release'
+cd <project-root>/build-v0-release && /usr/bin/cmake -E cmake_depends "Unix Makefiles" <project-root> <project-root>/build-v0-release/_deps/googletest-src/googlemock <project-root>/build-v0-release <project-root>/build-v0-release/_deps/googletest-build/googlemock <project-root>/build-v0-release/_deps/googletest-build/googlemock/CMakeFiles/gmock_main.dir/DependInfo.cmake "--color="
+gmake[2]: Leaving directory '<project-root>/build-v0-release'
+/usr/bin/gmake  -f _deps/googletest-build/googlemock/CMakeFiles/gmock_main.dir/build.make _deps/googletest-build/googlemock/CMakeFiles/gmock_main.dir/build
+gmake[2]: Entering directory '<project-root>/build-v0-release'
+[ 80%] Building CXX object _deps/googletest-build/googlemock/CMakeFiles/gmock_main.dir/src/gmock_main.cc.o
+cd <project-root>/build-v0-release/_deps/googletest-build/googlemock && /usr/bin/c++  -isystem <project-root>/build-v0-release/_deps/googletest-src/googlemock/include -isystem <project-root>/build-v0-release/_deps/googletest-src/googlemock -isystem <project-root>/build-v0-release/_deps/googletest-src/googletest/include -isystem <project-root>/build-v0-release/_deps/googletest-src/googletest -O3 -DNDEBUG -std=c++23 -Wall -Wshadow -Wundef -Wno-error=dangling-else -DGTEST_HAS_PTHREAD=1 -fexceptions -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -MD -MT _deps/googletest-build/googlemock/CMakeFiles/gmock_main.dir/src/gmock_main.cc.o -MF CMakeFiles/gmock_main.dir/src/gmock_main.cc.o.d -o CMakeFiles/gmock_main.dir/src/gmock_main.cc.o -c <project-root>/build-v0-release/_deps/googletest-src/googlemock/src/gmock_main.cc
+[ 90%] Linking CXX executable common_test
+cd <project-root>/build-v0-release/tests && /usr/bin/cmake -E cmake_link_script CMakeFiles/common_test.dir/link.txt --verbose=1
+/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/common_test.dir/common_test.cpp.o -o common_test  ../lib/libgtest_main.a ../lib/libgtest.a 
+cd <project-root>/build-v0-release/tests && /usr/bin/cmake -D TEST_TARGET=common_test -D TEST_EXECUTABLE=<project-root>/build-v0-release/tests/common_test -D TEST_EXECUTOR= -D TEST_WORKING_DIR=<project-root>/build-v0-release/tests -D TEST_EXTRA_ARGS= -D TEST_PROPERTIES= -D TEST_PREFIX= -D TEST_SUFFIX= -D TEST_FILTER= -D NO_PRETTY_TYPES=FALSE -D NO_PRETTY_VALUES=FALSE -D TEST_LIST=common_test_TESTS -D CTEST_FILE=<project-root>/build-v0-release/tests/common_test[1]_tests.cmake -D TEST_DISCOVERY_TIMEOUT=5 -D TEST_XML_OUTPUT_DIR= -P /usr/share/cmake-3.28/Modules/GoogleTestAddTests.cmake
+gmake[2]: Leaving directory '<project-root>/build-v0-release'
+[ 90%] Built target common_test
+[100%] Linking CXX static library ../../../lib/libgmock_main.a
+cd <project-root>/build-v0-release/_deps/googletest-build/googlemock && /usr/bin/cmake -P CMakeFiles/gmock_main.dir/cmake_clean_target.cmake
+cd <project-root>/build-v0-release/_deps/googletest-build/googlemock && /usr/bin/cmake -E cmake_link_script CMakeFiles/gmock_main.dir/link.txt --verbose=1
+/usr/bin/ar qc ../../../lib/libgmock_main.a CMakeFiles/gmock_main.dir/src/gmock_main.cc.o
+/usr/bin/raqlib ../../../lib/libgmock_main.a
+gmake[2]: Leaving directory '<project-root>/build-v0-release'
+[100%] Built target gmock_main
+gmake[1]: Leaving directory '<project-root>/build-v0-release'
+/usr/bin/cmake -E cmake_progress_start <project-root>/build-v0-release/CMakeFiles 0
+
+退出码: 0
+$ ./build-v0-release/tests/common_test
+Running main() from <project-root>/build-v0-release/_deps/googletest-src/googletest/src/gtest_main.cc
+[==========] Running 17 tests from 2 test suites.
+[----------] Global test environment set-up.
+[----------] 14 tests from Common
+[ RUN      ] Common.DefaultCacheLineAndFixedPointUnits
+[       OK ] Common.DefaultCacheLineAndFixedPointUnits (0 ms)
+[ RUN      ] Common.OrderFieldsAndCopy
+[       OK ] Common.OrderFieldsAndCopy (0 ms)
+[ RUN      ] Common.CancelFieldsAndCopy
+[       OK ] Common.CancelFieldsAndCopy (0 ms)
+[ RUN      ] Common.TradeFieldsAndCopy
+[       OK ] Common.TradeFieldsAndCopy (0 ms)
+[ RUN      ] Common.LevelFieldsAndCopy
+[       OK ] Common.LevelFieldsAndCopy (0 ms)
+[ RUN      ] Common.BookFieldsAndCopy
+[       OK ] Common.BookFieldsAndCopy (0 ms)
+[ RUN      ] Common.MetricsValueInitializationZerosEveryField
+[       OK ] Common.MetricsValueInitializationZerosEveryField (0 ms)
+[ RUN      ] Common.MetricsFieldsAndCopy
+[       OK ] Common.MetricsFieldsAndCopy (0 ms)
+[ RUN      ] Common.FeedEventConstructsAssignsAndReadsEveryAlternative
+[       OK ] Common.FeedEventConstructsAssignsAndReadsEveryAlternative (0 ms)
+[ RUN      ] Common.RecordConstructsAssignsAndReadsEveryAlternative
+[       OK ] Common.RecordConstructsAssignsAndReadsEveryAlternative (0 ms)
+[ RUN      ] Common.FeedVisitorSelectsEveryBranch
+[       OK ] Common.FeedVisitorSelectsEveryBranch (0 ms)
+[ RUN      ] Common.RecordVisitorSelectsEveryBranch
+[       OK ] Common.RecordVisitorSelectsEveryBranch (0 ms)
+[ RUN      ] Common.TradeOverloadTakesPrecedenceOverGenericFallback
+[       OK ] Common.TradeOverloadTakesPrecedenceOverGenericFallback (0 ms)
+[ RUN      ] Common.WrongAlternativeAccessThrowsBadVariantAccess
+[       OK ] Common.WrongAlternativeAccessThrowsBadVariantAccess (0 ms)
+[----------] 14 tests from Common (1 ms total)
+
+[----------] 3 tests from PriceLevel
+[ RUN      ] PriceLevel.DefaultConstructionIsEmpty
+[       OK ] PriceLevel.DefaultConstructionIsEmpty (0 ms)
+[ RUN      ] PriceLevel.AggregateQuantityDoesNotRequireOrderLinks
+[       OK ] PriceLevel.AggregateQuantityDoesNotRequireOrderLinks (0 ms)
+[ RUN      ] PriceLevel.CallerMaintainsLinksAndAggregateQuantity
+[       OK ] PriceLevel.CallerMaintainsLinksAndAggregateQuantity (0 ms)
+[----------] 3 tests from PriceLevel (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 17 tests from 2 test suites ran. (1 ms total)
+[  PASSED  ] 17 tests.
+退出码: 0
+$ ctest --test-dir build-v0-release -N
+Internal ctest changing into directory: <project-root>/build-v0-release
+Test project <project-root>/build-v0-release
+  Test  #1: Common.DefaultCacheLineAndFixedPointUnits
+  Test  #2: Common.OrderFieldsAndCopy
+  Test  #3: Common.CancelFieldsAndCopy
+  Test  #4: Common.TradeFieldsAndCopy
+  Test  #5: Common.LevelFieldsAndCopy
+  Test  #6: Common.BookFieldsAndCopy
+  Test  #7: Common.MetricsValueInitializationZerosEveryField
+  Test  #8: Common.MetricsFieldsAndCopy
+  Test  #9: Common.FeedEventConstructsAssignsAndReadsEveryAlternative
+  Test #10: Common.RecordConstructsAssignsAndReadsEveryAlternative
+  Test #11: Common.FeedVisitorSelectsEveryBranch
+  Test #12: Common.RecordVisitorSelectsEveryBranch
+  Test #13: Common.TradeOverloadTakesPrecedenceOverGenericFallback
+  Test #14: Common.WrongAlternativeAccessThrowsBadVariantAccess
+  Test #15: PriceLevel.DefaultConstructionIsEmpty
+  Test #16: PriceLevel.AggregateQuantityDoesNotRequireOrderLinks
+  Test #17: PriceLevel.CallerMaintainsLinksAndAggregateQuantity
+
+Total Tests: 17
+退出码: 0
+$ ctest --test-dir build-v0-release --output-on-failure --no-tests=error
+Internal ctest changing into directory: <project-root>/build-v0-release
+Test project <project-root>/build-v0-release
+      Start  1: Common.DefaultCacheLineAndFixedPointUnits
+ 1/17 Test  #1: Common.DefaultCacheLineAndFixedPointUnits ...................   Passed    0.01 sec
+      Start  2: Common.OrderFieldsAndCopy
+ 2/17 Test  #2: Common.OrderFieldsAndCopy ...................................   Passed    0.01 sec
+      Start  3: Common.CancelFieldsAndCopy
+ 3/17 Test  #3: Common.CancelFieldsAndCopy ..................................   Passed    0.01 sec
+      Start  4: Common.TradeFieldsAndCopy
+ 4/17 Test  #4: Common.TradeFieldsAndCopy ...................................   Passed    0.01 sec
+      Start  5: Common.LevelFieldsAndCopy
+ 5/17 Test  #5: Common.LevelFieldsAndCopy ...................................   Passed    0.01 sec
+      Start  6: Common.BookFieldsAndCopy
+ 6/17 Test  #6: Common.BookFieldsAndCopy ....................................   Passed    0.01 sec
+      Start  7: Common.MetricsValueInitializationZerosEveryField
+ 7/17 Test  #7: Common.MetricsValueInitializationZerosEveryField ............   Passed    0.02 sec
+      Start  8: Common.MetricsFieldsAndCopy
+ 8/17 Test  #8: Common.MetricsFieldsAndCopy .................................   Passed    0.01 sec
+      Start  9: Common.FeedEventConstructsAssignsAndReadsEveryAlternative
+ 9/17 Test  #9: Common.FeedEventConstructsAssignsAndReadsEveryAlternative ...   Passed    0.01 sec
+      Start 10: Common.RecordConstructsAssignsAndReadsEveryAlternative
+10/17 Test #10: Common.RecordConstructsAssignsAndReadsEveryAlternative ......   Passed    0.01 sec
+      Start 11: Common.FeedVisitorSelectsEveryBranch
+11/17 Test #11: Common.FeedVisitorSelectsEveryBranch ........................   Passed    0.01 sec
+      Start 12: Common.RecordVisitorSelectsEveryBranch
+12/17 Test #12: Common.RecordVisitorSelectsEveryBranch ......................   Passed    0.01 sec
+      Start 13: Common.TradeOverloadTakesPrecedenceOverGenericFallback
+13/17 Test #13: Common.TradeOverloadTakesPrecedenceOverGenericFallback ......   Passed    0.01 sec
+      Start 14: Common.WrongAlternativeAccessThrowsBadVariantAccess
+14/17 Test #14: Common.WrongAlternativeAccessThrowsBadVariantAccess .........   Passed    0.01 sec
+      Start 15: PriceLevel.DefaultConstructionIsEmpty
+15/17 Test #15: PriceLevel.DefaultConstructionIsEmpty .......................   Passed    0.01 sec
+      Start 16: PriceLevel.AggregateQuantityDoesNotRequireOrderLinks
+16/17 Test #16: PriceLevel.AggregateQuantityDoesNotRequireOrderLinks ........   Passed    0.01 sec
+      Start 17: PriceLevel.CallerMaintainsLinksAndAggregateQuantity
+17/17 Test #17: PriceLevel.CallerMaintainsLinksAndAggregateQuantity .........   Passed    0.01 sec
+
+100% tests passed, 0 tests failed out of 17
+
+Total Test time (real) =   0.42 sec
+退出码: 0
+$ git -C build-v0-release/_deps/googletest-src describe --tags --exact-match
+v1.17.0
+退出码: 0
+$ git -C build-v0-release/_deps/googletest-src rev-parse HEAD
+52eb8108c5bdec04579160ae17225d66034bd723
+退出码: 0
+检查通过: 顶层首次配置未传测试开关，QLIB_BUILD_TESTS:BOOL=ON。

@@ -1,0 +1,8 @@
+qlib::map,insert,38.0
+qlib::map,find_hit,14.2
+qlib::map,find_miss,12.4
+qlib::map,erase,16.3
+std::unordered_map,insert,105.4
+std::unordered_map,find_hit,13.7
+std::unordered_map,find_miss,23.0
+std::unordered_map,erase,37.3

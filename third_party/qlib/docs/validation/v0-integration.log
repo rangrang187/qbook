@@ -1,0 +1,263 @@
+【归档说明】项目名称已统一为 qlib；旧绝对路径已替换为 <project-root>，临时调用目录已替换为 <consumer-source>。
+
+执行日期: 2026-10-15 Australia/Sydney
+工作区: <project-root>
+$ uname -a
+Linux LAPTOP-BI4U88GN 6.6.87.2-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Thu Jun  5 18:30:46 UTC 2025 x86_64 x86_64 x86_64 GNU/Linux
+退出码: 0
+$ cmake --version
+cmake version 3.28.3
+
+CMake suite maintained and supported by Kitware (kitware.com/cmake).
+退出码: 0
+$ c++ --version
+c++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+Copyright (C) 2023 Free Software Foundation, Inc.
+This is free software; see the source for copying conditions.  There is NO
+warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+退出码: 0
+$ git --version
+git version 2.43.0
+退出码: 0
+$ make --version
+GNU Make 4.3
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2020 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+退出码: 0
+$ cmake -S <project-root> -B build-v0-off -DCMAKE_BUILD_TYPE=Release --trace-expand --trace-source=<project-root>/tests/CMakeLists.txt -DQLIB_BUILD_TESTS=OFF
+Put cmake in trace mode, but with variables expanded.
+Put cmake in trace mode, but output only lines of a specified file. Multiple options are allowed.
+-- The CXX compiler identification is GNU 13.3.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Configuring done (3.1s)
+-- Generating done (0.1s)
+-- Build files have been written to: <project-root>/build-v0-off
+退出码: 0
+$ cmake --build build-v0-off --parallel --verbose
+Change Dir: '<project-root>/build-v0-off'
+
+Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile -j
+/usr/bin/cmake -S<project-root> -B<project-root>/build-v0-off --check-build-system CMakeFiles/Makefile.cmake 0
+/usr/bin/cmake -E cmake_progress_start <project-root>/build-v0-off/CMakeFiles <project-root>/build-v0-off//CMakeFiles/progress.marks
+/usr/bin/gmake  -f CMakeFiles/Makefile2 all
+gmake[1]: Entering directory '<project-root>/build-v0-off'
+gmake[1]: Nothing to be done for 'all'.
+gmake[1]: Leaving directory '<project-root>/build-v0-off'
+/usr/bin/cmake -E cmake_progress_start <project-root>/build-v0-off/CMakeFiles 0
+退出码: 0
+$ cmake --build build-v0-off --target help
+The following are some of the valid targets for this Makefile:
+... all (the default if no target is provided)
+... clean
+... depend
+... edit_cache
+... rebuild_cache
+退出码: 0
+QLIB_BUILD_TESTS:BOOL=OFF
+检查通过: OFF 缓存；无测试/GoogleTest 目标、依赖目录或 GoogleTest 缓存项。
+$ cmake -S <consumer-source> -B build-v0-consumer-default -DCMAKE_BUILD_TYPE=Release --trace-expand --trace-source=<project-root>/tests/CMakeLists.txt -DQLIB_SOURCE_DIR=<project-root>
+Put cmake in trace mode, but with variables expanded.
+Put cmake in trace mode, but output only lines of a specified file. Multiple options are allowed.
+-- The CXX compiler identification is GNU 13.3.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Configuring done (3.0s)
+-- Generating done (0.2s)
+-- Build files have been written to: <project-root>/build-v0-consumer-default
+退出码: 0
+$ cmake --build build-v0-consumer-default --parallel --verbose
+Change Dir: '<project-root>/build-v0-consumer-default'
+
+Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile -j
+/usr/bin/cmake -S<consumer-source> -B<project-root>/build-v0-consumer-default --check-build-system CMakeFiles/Makefile.cmake 0
+/usr/bin/cmake -E cmake_progress_start <project-root>/build-v0-consumer-default/CMakeFiles <project-root>/build-v0-consumer-default//CMakeFiles/progress.marks
+/usr/bin/gmake  -f CMakeFiles/Makefile2 all
+gmake[1]: Entering directory '<project-root>/build-v0-consumer-default'
+/usr/bin/gmake  -f CMakeFiles/qlib_consumer_v0.dir/build.make CMakeFiles/qlib_consumer_v0.dir/depend
+gmake[2]: Entering directory '<project-root>/build-v0-consumer-default'
+cd <project-root>/build-v0-consumer-default && /usr/bin/cmake -E cmake_depends "Unix Makefiles" <consumer-source> <consumer-source> <project-root>/build-v0-consumer-default <project-root>/build-v0-consumer-default <project-root>/build-v0-consumer-default/CMakeFiles/qlib_consumer_v0.dir/DependInfo.cmake "--color="
+gmake[2]: Leaving directory '<project-root>/build-v0-consumer-default'
+/usr/bin/gmake  -f CMakeFiles/qlib_consumer_v0.dir/build.make CMakeFiles/qlib_consumer_v0.dir/build
+gmake[2]: Entering directory '<project-root>/build-v0-consumer-default'
+[ 50%] Building CXX object CMakeFiles/qlib_consumer_v0.dir/main.cpp.o
+/usr/bin/c++ -DEXPECTED_CACHE_LINE=64 -I<project-root>/include -O3 -DNDEBUG -std=gnu++23 -MD -MT CMakeFiles/qlib_consumer_v0.dir/main.cpp.o -MF CMakeFiles/qlib_consumer_v0.dir/main.cpp.o.d -o CMakeFiles/qlib_consumer_v0.dir/main.cpp.o -c <consumer-source>/main.cpp
+[100%] Linking CXX executable qlib_consumer_v0
+/usr/bin/cmake -E cmake_link_script CMakeFiles/qlib_consumer_v0.dir/link.txt --verbose=1
+/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/qlib_consumer_v0.dir/main.cpp.o -o qlib_consumer_v0 
+gmake[2]: Leaving directory '<project-root>/build-v0-consumer-default'
+[100%] Built target qlib_consumer_v0
+gmake[1]: Leaving directory '<project-root>/build-v0-consumer-default'
+/usr/bin/cmake -E cmake_progress_start <project-root>/build-v0-consumer-default/CMakeFiles 0
+退出码: 0
+$ cmake --build build-v0-consumer-default --target help
+The following are some of the valid targets for this Makefile:
+... all (the default if no target is provided)
+... clean
+... depend
+... edit_cache
+... rebuild_cache
+... qlib_consumer_v0
+... main.o
+... main.i
+... main.s
+退出码: 0
+QLIB_BUILD_TESTS:BOOL=OFF
+检查通过: OFF 缓存；无测试/GoogleTest 目标、依赖目录或 GoogleTest 缓存项。
+编译要求:
+# CMAKE generated file: DO NOT EDIT!
+# Generated by "Unix Makefiles" Generator, CMake Version 3.28
+
+# compile CXX with /usr/bin/c++
+CXX_DEFINES = -DEXPECTED_CACHE_LINE=64
+
+CXX_INCLUDES = -I<project-root>/include
+
+CXX_FLAGS = -O3 -DNDEBUG -std=gnu++23
+链接命令:
+/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/qlib_consumer_v0.dir/main.cpp.o -o qlib_consumer_v0
+$ <project-root>/build-v0-consumer-default/qlib_consumer_v0
+
+退出码: 0
+$ cmake -S <consumer-source> -B build-v0-consumer-off -DCMAKE_BUILD_TYPE=Release --trace-expand --trace-source=<project-root>/tests/CMakeLists.txt -DQLIB_SOURCE_DIR=<project-root> -DQLIB_BUILD_TESTS=OFF
+Put cmake in trace mode, but with variables expanded.
+Put cmake in trace mode, but output only lines of a specified file. Multiple options are allowed.
+-- The CXX compiler identification is GNU 13.3.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Configuring done (2.5s)
+-- Generating done (0.3s)
+-- Build files have been written to: <project-root>/build-v0-consumer-off
+退出码: 0
+$ cmake --build build-v0-consumer-off --parallel --verbose
+Change Dir: '<project-root>/build-v0-consumer-off'
+
+Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile -j
+/usr/bin/cmake -S<consumer-source> -B<project-root>/build-v0-consumer-off --check-build-system CMakeFiles/Makefile.cmake 0
+/usr/bin/cmake -E cmake_progress_start <project-root>/build-v0-consumer-off/CMakeFiles <project-root>/build-v0-consumer-off//CMakeFiles/progress.marks
+/usr/bin/gmake  -f CMakeFiles/Makefile2 all
+gmake[1]: Entering directory '<project-root>/build-v0-consumer-off'
+/usr/bin/gmake  -f CMakeFiles/qlib_consumer_v0.dir/build.make CMakeFiles/qlib_consumer_v0.dir/depend
+gmake[2]: Entering directory '<project-root>/build-v0-consumer-off'
+cd <project-root>/build-v0-consumer-off && /usr/bin/cmake -E cmake_depends "Unix Makefiles" <consumer-source> <consumer-source> <project-root>/build-v0-consumer-off <project-root>/build-v0-consumer-off <project-root>/build-v0-consumer-off/CMakeFiles/qlib_consumer_v0.dir/DependInfo.cmake "--color="
+gmake[2]: Leaving directory '<project-root>/build-v0-consumer-off'
+/usr/bin/gmake  -f CMakeFiles/qlib_consumer_v0.dir/build.make CMakeFiles/qlib_consumer_v0.dir/build
+gmake[2]: Entering directory '<project-root>/build-v0-consumer-off'
+[ 50%] Building CXX object CMakeFiles/qlib_consumer_v0.dir/main.cpp.o
+/usr/bin/c++ -DEXPECTED_CACHE_LINE=64 -I<project-root>/include -O3 -DNDEBUG -std=gnu++23 -MD -MT CMakeFiles/qlib_consumer_v0.dir/main.cpp.o -MF CMakeFiles/qlib_consumer_v0.dir/main.cpp.o.d -o CMakeFiles/qlib_consumer_v0.dir/main.cpp.o -c <consumer-source>/main.cpp
+[100%] Linking CXX executable qlib_consumer_v0
+/usr/bin/cmake -E cmake_link_script CMakeFiles/qlib_consumer_v0.dir/link.txt --verbose=1
+/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/qlib_consumer_v0.dir/main.cpp.o -o qlib_consumer_v0 
+gmake[2]: Leaving directory '<project-root>/build-v0-consumer-off'
+[100%] Built target qlib_consumer_v0
+gmake[1]: Leaving directory '<project-root>/build-v0-consumer-off'
+/usr/bin/cmake -E cmake_progress_start <project-root>/build-v0-consumer-off/CMakeFiles 0
+退出码: 0
+$ cmake --build build-v0-consumer-off --target help
+The following are some of the valid targets for this Makefile:
+... all (the default if no target is provided)
+... clean
+... depend
+... edit_cache
+... rebuild_cache
+... qlib_consumer_v0
+... main.o
+... main.i
+... main.s
+退出码: 0
+QLIB_BUILD_TESTS:BOOL=OFF
+检查通过: OFF 缓存；无测试/GoogleTest 目标、依赖目录或 GoogleTest 缓存项。
+编译要求:
+# CMAKE generated file: DO NOT EDIT!
+# Generated by "Unix Makefiles" Generator, CMake Version 3.28
+
+# compile CXX with /usr/bin/c++
+CXX_DEFINES = -DEXPECTED_CACHE_LINE=64
+
+CXX_INCLUDES = -I<project-root>/include
+
+CXX_FLAGS = -O3 -DNDEBUG -std=gnu++23
+链接命令:
+/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/qlib_consumer_v0.dir/main.cpp.o -o qlib_consumer_v0
+$ <project-root>/build-v0-consumer-off/qlib_consumer_v0
+
+退出码: 0
+$ cmake -S <consumer-source> -B build-v0-consumer-cache128 -DCMAKE_BUILD_TYPE=Release --trace-expand --trace-source=<project-root>/tests/CMakeLists.txt -DQLIB_SOURCE_DIR=<project-root> -DQLIB_CONSUMER_CACHE_LINE=128
+Put cmake in trace mode, but with variables expanded.
+Put cmake in trace mode, but output only lines of a specified file. Multiple options are allowed.
+-- The CXX compiler identification is GNU 13.3.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Configuring done (3.3s)
+-- Generating done (0.3s)
+-- Build files have been written to: <project-root>/build-v0-consumer-cache128
+退出码: 0
+$ cmake --build build-v0-consumer-cache128 --parallel --verbose
+Change Dir: '<project-root>/build-v0-consumer-cache128'
+
+Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile -j
+/usr/bin/cmake -S<consumer-source> -B<project-root>/build-v0-consumer-cache128 --check-build-system CMakeFiles/Makefile.cmake 0
+/usr/bin/cmake -E cmake_progress_start <project-root>/build-v0-consumer-cache128/CMakeFiles <project-root>/build-v0-consumer-cache128//CMakeFiles/progress.marks
+/usr/bin/gmake  -f CMakeFiles/Makefile2 all
+gmake[1]: Entering directory '<project-root>/build-v0-consumer-cache128'
+/usr/bin/gmake  -f CMakeFiles/qlib_consumer_v0.dir/build.make CMakeFiles/qlib_consumer_v0.dir/depend
+gmake[2]: Entering directory '<project-root>/build-v0-consumer-cache128'
+cd <project-root>/build-v0-consumer-cache128 && /usr/bin/cmake -E cmake_depends "Unix Makefiles" <consumer-source> <consumer-source> <project-root>/build-v0-consumer-cache128 <project-root>/build-v0-consumer-cache128 <project-root>/build-v0-consumer-cache128/CMakeFiles/qlib_consumer_v0.dir/DependInfo.cmake "--color="
+gmake[2]: Leaving directory '<project-root>/build-v0-consumer-cache128'
+/usr/bin/gmake  -f CMakeFiles/qlib_consumer_v0.dir/build.make CMakeFiles/qlib_consumer_v0.dir/build
+gmake[2]: Entering directory '<project-root>/build-v0-consumer-cache128'
+[ 50%] Building CXX object CMakeFiles/qlib_consumer_v0.dir/main.cpp.o
+/usr/bin/c++ -DEXPECTED_CACHE_LINE=128 -DQLIB_CACHE_LINE=128 -I<project-root>/include -O3 -DNDEBUG -std=gnu++23 -MD -MT CMakeFiles/qlib_consumer_v0.dir/main.cpp.o -MF CMakeFiles/qlib_consumer_v0.dir/main.cpp.o.d -o CMakeFiles/qlib_consumer_v0.dir/main.cpp.o -c <consumer-source>/main.cpp
+[100%] Linking CXX executable qlib_consumer_v0
+/usr/bin/cmake -E cmake_link_script CMakeFiles/qlib_consumer_v0.dir/link.txt --verbose=1
+/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/qlib_consumer_v0.dir/main.cpp.o -o qlib_consumer_v0 
+gmake[2]: Leaving directory '<project-root>/build-v0-consumer-cache128'
+[100%] Built target qlib_consumer_v0
+gmake[1]: Leaving directory '<project-root>/build-v0-consumer-cache128'
+/usr/bin/cmake -E cmake_progress_start <project-root>/build-v0-consumer-cache128/CMakeFiles 0
+退出码: 0
+$ cmake --build build-v0-consumer-cache128 --target help
+The following are some of the valid targets for this Makefile:
+... all (the default if no target is provided)
+... clean
+... depend
+... edit_cache
+... rebuild_cache
+... qlib_consumer_v0
+... main.o
+... main.i
+... main.s
+退出码: 0
+QLIB_BUILD_TESTS:BOOL=OFF
+检查通过: OFF 缓存；无测试/GoogleTest 目标、依赖目录或 GoogleTest 缓存项。
+编译要求:
+# CMAKE generated file: DO NOT EDIT!
+# Generated by "Unix Makefiles" Generator, CMake Version 3.28
+
+# compile CXX with /usr/bin/c++
+CXX_DEFINES = -DEXPECTED_CACHE_LINE=128 -DQLIB_CACHE_LINE=128
+
+CXX_INCLUDES = -I<project-root>/include
+
+CXX_FLAGS = -O3 -DNDEBUG -std=gnu++23
+链接命令:
+/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/qlib_consumer_v0.dir/main.cpp.o -o qlib_consumer_v0
+$ <project-root>/build-v0-consumer-cache128/qlib_consumer_v0
+
+退出码: 0
+四个独立配置均通过；三个调用程序均返回 0。

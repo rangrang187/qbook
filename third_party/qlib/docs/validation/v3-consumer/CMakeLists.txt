@@ -1,0 +1,10 @@
+cmake_minimum_required(VERSION 3.28)
+project(qlib_v3_consumer LANGUAGES CXX)
+
+if(NOT DEFINED QLIB_SOURCE_DIR)
+  message(FATAL_ERROR "请用 -DQLIB_SOURCE_DIR 指定 qlib 源码目录")
+endif()
+add_subdirectory("${QLIB_SOURCE_DIR}" qlib)
+find_package(Threads REQUIRED)
+add_executable(v3_consumer main.cpp)
+target_link_libraries(v3_consumer PRIVATE qlib::qlib Threads::Threads)

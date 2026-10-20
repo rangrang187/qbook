@@ -1,0 +1,10 @@
+# 周期单位为毫秒；容量是队列的最小请求槽数，实际容量向上取整为 2 的幂。
+feed_endpoint: "tcp://127.0.0.1:5555"
+l2: false
+feed_queue_capacity: 16384
+snapshot_period: 3000
+record_queue_capacity: 16384
+out_dir: "data_out"
+batch_rows: 1024
+metrics_endpoint: "tcp://127.0.0.1:5556"
+sample_period: 100

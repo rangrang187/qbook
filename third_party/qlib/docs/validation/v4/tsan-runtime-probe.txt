@@ -1,0 +1,10 @@
+$ /tmp/qlib-v4-runtime-probe
+
+FATAL: ThreadSanitizer: unexpected memory mapping 0x634d799e8000-0x634d799e9000
+exit=66
+
+$ setarch x86_64 -R /tmp/qlib-v4-runtime-probe
+TSan runtime reached main
+
+exit=0
+

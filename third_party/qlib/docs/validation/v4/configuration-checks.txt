@@ -1,0 +1,18 @@
+build-v4-release: QLIB_BUILD_TESTS=ON
+
+build-v4-off: QLIB_BUILD_TESTS=OFF
+  no _deps, GoogleTest cache entries or test/benchmark targets; tests/CMakeLists.txt trace had zero execution entries
+
+build-v4-consumer-default: QLIB_BUILD_TESTS=OFF
+  no _deps, GoogleTest cache entries or test/benchmark targets; tests/CMakeLists.txt trace had zero execution entries
+  7 independent translation units; include and C++23 flags propagated by qlib::qlib
+  /usr/bin/c++  -I/tmp/qlib-v4-cH5kd8/include -O3 -DNDEBUG -std=gnu++23 -o CMakeFiles/qlib_consumer_v4.dir/check_common.cpp.o -c /tmp/qlib-v4-consumer-eyo953yz/check_common.cpp
+  link: /usr/bin/c++ -O3 -DNDEBUG CMakeFiles/qlib_consumer_v4.dir/main.cpp.o CMakeFiles/qlib_consumer_v4.dir/check_common.cpp.o CMakeFiles/qlib_consumer_v4.dir/check_hive.cpp.o CMakeFiles/qlib_consumer_v4.dir/check_map.cpp.o CMakeFiles/qlib_consumer_v4.dir/check_single_queue.cpp.o CMakeFiles/qlib_consumer_v4.dir/check_pool.cpp.o CMakeFiles/qlib_consumer_v4.dir/check_memory_pool.cpp.o -o qlib_consumer_v4
+
+build-v4-consumer-off: QLIB_BUILD_TESTS=OFF
+  no _deps, GoogleTest cache entries or test/benchmark targets; tests/CMakeLists.txt trace had zero execution entries
+  7 independent translation units; include and C++23 flags propagated by qlib::qlib
+  /usr/bin/c++  -I/tmp/qlib-v4-cH5kd8/include -O3 -DNDEBUG -std=gnu++23 -o CMakeFiles/qlib_consumer_v4.dir/check_common.cpp.o -c /tmp/qlib-v4-consumer-eyo953yz/check_common.cpp
+  link: /usr/bin/c++ -O3 -DNDEBUG CMakeFiles/qlib_consumer_v4.dir/main.cpp.o CMakeFiles/qlib_consumer_v4.dir/check_common.cpp.o CMakeFiles/qlib_consumer_v4.dir/check_hive.cpp.o CMakeFiles/qlib_consumer_v4.dir/check_map.cpp.o CMakeFiles/qlib_consumer_v4.dir/check_single_queue.cpp.o CMakeFiles/qlib_consumer_v4.dir/check_pool.cpp.o CMakeFiles/qlib_consumer_v4.dir/check_memory_pool.cpp.o -o qlib_consumer_v4
+
+CTest: 151 tests; 35 queue/integration cases each TIMEOUT=120; map_bench not registered; map_bench link: /usr/bin/c++ -O3 -DNDEBUG CMakeFiles/map_bench.dir/map_bench.cpp.o -o map_bench

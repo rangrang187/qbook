@@ -1,0 +1,14 @@
+【归档说明】项目名称已统一为 qlib；旧绝对路径已替换为 <project-root>。
+
+-- The C compiler identification is GNU 13.3.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE  
+-- Configuring done (14.7s)
+-- Generating done (1.6s)
+-- Build files have been written to: <project-root>/build-v0-release
