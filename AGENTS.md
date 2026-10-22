@@ -4,11 +4,11 @@ Guidance for Codex when working in this repository.
 
 ## What this is
 
-`qbook` 是参考 `nqbook` 重新开发的 C++ 限价订单簿服务，用于接收行情事件、按交易品种维护订单簿、生成快照并记录数据；它根据外部成交事件更新订单，不主动撮合买卖订单。初始方案沿用参考项目的 C++23、CMake、ZeroMQ、Arrow/Parquet，并复用已有的 `qlib` 基础库，项目代码使用命名空间 `qbook`。目标运行方式是常驻进程：行情接收、订单簿维护、数据写入三个阶段通过 SPSC 队列传递数据，独立监控线程采集指标；可视化界面在对应版本再接入。项目已完成 V0 的支持库与测试，后续业务目录仍是规划；具体范围以需求和规格文档为准，实际构建说明见 [README.md](README.md)。
+`qbook` 是参考 `nqbook` 重新开发的 C++ 限价订单簿服务，用于接收行情事件、按交易品种维护订单簿、生成快照并记录数据；它根据外部成交事件更新订单，不主动撮合买卖订单。初始方案沿用参考项目的 C++23、CMake、ZeroMQ、Arrow/Parquet，并复用已有的 `qlib` 基础库，项目代码使用命名空间 `qbook`。目标运行方式是常驻进程：行情接收、订单簿维护、数据写入三个阶段通过 SPSC 队列传递数据，独立监控线程采集指标；可视化界面在对应版本再接入。项目已完成 V0 的支持库与测试；V1 的订单簿核心与测试已完成实现和验证，标准 Debug 与 ASan/UBSan 均为 60/60 通过。网络、持久化与运行阶段留待后续版本；具体范围以需求和规格文档为准，实际构建说明见 [README.md](README.md)。
 
 ## Layout
 
-以下列出当前文件与后续规划位置。Orderbook、网络阶段、持久化、main、UI 和 benchmark 尚未实现。按当前版本需要创建文件，不要一次性生成所有目录、空类或占位实现。已有文件采用不同路径时，先核对实际结构，再同步本文档。
+以下列出当前文件与后续规划位置。Orderbook 已实现；网络阶段、持久化、main、UI 和 benchmark 仍是规划。按当前版本需要创建文件，不要一次性生成所有目录、空类或占位实现。已有文件采用不同路径时，先核对实际结构，再同步本文档。
 
 ```text
 AGENTS.md                         Codex 的仓库工作规则
@@ -39,6 +39,8 @@ include/Threads/MetricsThread.h    V0 指标单元与集合；发布阶段留待
 src/Threads/MetricsThread.cpp      V0 原子操作与值快照；发布留待 V4
 src/main.cpp                      配置加载、对象组装、线程启动与有序停止
 tests/                            订单簿及其他组件的单元测试、集成测试
+tests/support/OrderbookInspector.h 测试只读观察器，检查全部存储、索引、价位和链接
+tests/support/AllocationFailure.*  专用测试程序的普通与对齐分配替换
 benchmarks/                       独立性能实验；按版本需要添加
 third_party/qlib/                 用户本地 qlib 的固定源码快照
 third_party/qlib.sha256            qlib 相对路径与 SHA-256 内容清单
@@ -55,9 +57,11 @@ data_out/                        运行生成的数据文件，不提交
 
 ## Build
 
-V0 在 Linux / WSL2、x86-64、小端环境构建。使用 C++23、CMake 3.28 以上及 Ninja。
-当前仅建立 `qbook_support` 和 `qbook_tests`，不依赖 ZMQ、Arrow、Parquet 或 UI 工具链。
-实际环境、依赖版本和验收结果以 [README.md](README.md) 与本地 `docs/releases/V0.md` 为准。`docs/releases/` 按项目所有者要求不提交或上传 GitHub。
+支持库和核心库在 Linux / WSL2、x86-64、小端环境构建。使用 C++23、CMake 3.28 以上及 Ninja。
+当前建立 `qbook_support`、`qbook_core`、`qbook_tests` 和 `qbook_allocation_tests`，不依赖 ZMQ、Arrow、Parquet 或 UI 工具链。
+`qbook_core` 只包含真实的 `src/Orderbook.cpp`，仅公开链接 `qlib::qlib`，不依赖支持库或日志。
+普通测试含 V0 30 项及 V1 24 项；专用程序含分配自测和五项回滚测试，分配替换只链接到专用程序。
+实际环境、依赖版本和验收结果以 [README.md](README.md) 与本地 `docs/releases/` 对应版本记录为准。`docs/releases/` 按项目所有者要求不提交或上传 GitHub。
 
 qlib 使用用户本地源码的固定副本，位于 `third_party/qlib/`；逐文件内容记录在
 `third_party/qlib.sha256`。它没有可用 Git 提交，不能编造来源或用其他上游分支替代。
@@ -77,7 +81,7 @@ ctest --test-dir build/debug --output-on-failure --no-tests=error
 ```
 
 `--show-only` 只确认注册数量；必须实际执行测试才可写通过。
-`BUILD_TESTING=OFF` 只构建支持库，不要求 Catch2。V0 对服务或 benchmark 开关为 ON 明确拒绝配置。
+`BUILD_TESTING=OFF` 只构建支持库和核心库，不要求 Catch2。当前对服务或 benchmark 开关为 ON 明确拒绝配置。
 当前没有 `qbook` 服务可执行文件，不能宣称已接收行情、写入 Parquet 或完成完整启停。
 
 新增版本时只接入当前功能所需的依赖和实际源码，不创建空类或伪服务目标。
@@ -98,7 +102,9 @@ ctest --test-dir build/debug --output-on-failure --no-tests=error
 
 - **订单簿职责。** 一个 `Orderbook` 实例维护一个交易品种；多个品种由上层分发。它根据新增、修改、成交和撤单事件更新状态，按照规格生成快照；交叉挂单不触发主动撮合。不要把策略、下单、风控或撮合引擎功能顺手加入本项目。
 
-- **订单簿存储。** 初始设计采用 `qlib::hive` 持有地址稳定的订单、ID 索引定位订单、按价格排序的买卖价位集合，以及价位内的 FIFO 关系。使用侵入式链接之前先确认 `qlib` 的订单类型提供所需字段。新增、扣减和删除必须使订单存储、ID 索引、链表及价位总量保持一致；外部传来的指针字段不能作为本地链接使用。
+- **订单簿存储。** `Orderbook` 使用 `qlib::hive` 持有地址稳定的订单、ID 索引定位订单、按价格排序的买卖价位集合，以及价位内的 FIFO 关系。新增、扣减和删除必须使订单存储、ID 索引、链表及价位总量保持一致；外部传来的指针字段不能作为本地链接使用。测试只读观察器定义在 `tests/`，生产头无条件声明友元，不增加在线查询接口。
+
+- **订单簿观察与移动。** `OnSnapshot`、`size` 和 `MemoryBytes` 也由当前所有者串行调用；`MemoryBytes` 仅按固定公式估计，超界饱和，不能称为 RSS 或精确分配量。禁止复制订单簿；移动保留活订单地址，移动后重取容器迭代器，外层品种表插入后重查订单簿。移动来源只保证可析构和重新赋值。
 
 - **业务边界。** 修改订单是否保留优先级、重复 ID、未知订单、非正数量和超额扣减如何处理，必须遵守规格并覆盖关键测试。尚未规定时不能仅凭参考实现中的偶然行为定义业务规则。校验应放在合适的输入边界，内部避免重复执行没有明确用途的全量检查。
 
