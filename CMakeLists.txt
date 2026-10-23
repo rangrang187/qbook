@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.28)
-project(qbook VERSION 0.1.0 LANGUAGES CXX)
+project(qbook VERSION 0.2.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -7,6 +7,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include(CTest)
+option(QBOOK_BUILD_PIPELINE "构建 Feed 与 Book 流水线" ON)
 option(QBOOK_BUILD_SERVICE "构建完整 qbook 服务" OFF)
 option(QBOOK_BUILD_BENCHMARKS "构建性能实验" OFF)
 if(QBOOK_BUILD_SERVICE)
@@ -59,6 +60,43 @@ target_compile_features(qbook_core PUBLIC cxx_std_23)
 target_link_libraries(qbook_core PUBLIC qlib::qlib)
 target_compile_options(qbook_core PRIVATE -Wall -Wextra -Wpedantic)
 
+add_library(qbook_protocol STATIC src/Protocol.cpp)
+target_include_directories(qbook_protocol PUBLIC include)
+target_compile_features(qbook_protocol PUBLIC cxx_std_23)
+target_link_libraries(qbook_protocol PUBLIC qlib::qlib)
+target_compile_options(qbook_protocol PRIVATE -Wall -Wextra -Wpedantic)
+
+if(QBOOK_BUILD_PIPELINE)
+  # 官方固定源码：libzmq v4.3.5、cppzmq v4.10.0，内容清单见 third_party/*.sha256。
+  # 关闭流水线时不进入此分支，也不探测通信依赖。
+  enable_language(C)
+  foreach(required_file IN ITEMS third_party/libzmq/CMakeLists.txt
+      third_party/libzmq/include/zmq.h third_party/cppzmq/CMakeLists.txt
+      third_party/cppzmq/zmq.hpp)
+    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${required_file}")
+      message(FATAL_ERROR "缺少固定通信依赖：${required_file}；请按 README 恢复源码")
+    endif()
+  endforeach()
+  set(BUILD_SHARED ON CACHE BOOL "构建固定 libzmq 动态库" FORCE)
+  set(BUILD_STATIC OFF CACHE BOOL "只构建当前使用的 libzmq 动态目标" FORCE)
+  foreach(dependency_option IN ITEMS BUILD_TESTS WITH_DOC WITH_DOCS WITH_PERF_TOOL
+      WITH_LIBBSD WITH_LIBSODIUM WITH_OPENPGM WITH_NORM ENABLE_CURVE ENABLE_DRAFTS
+      ENABLE_WS ENABLE_CPACK CPPZMQ_BUILD_TESTS)
+    set(${dependency_option} OFF CACHE BOOL "qbook 固定通信依赖选项" FORCE)
+  endforeach()
+  add_subdirectory(third_party/libzmq EXCLUDE_FROM_ALL)
+  add_subdirectory(third_party/cppzmq EXCLUDE_FROM_ALL)
+  if(NOT TARGET libzmq OR NOT TARGET cppzmq)
+    message(FATAL_ERROR "固定通信源码未提供 libzmq/cppzmq 真实目标")
+  endif()
+  add_library(qbook_pipeline STATIC src/Threads/FeedThread.cpp src/Threads/BookThread.cpp)
+  target_include_directories(qbook_pipeline PUBLIC include)
+  target_compile_features(qbook_pipeline PUBLIC cxx_std_23)
+  target_link_libraries(qbook_pipeline PUBLIC qbook_core qbook_support qbook_protocol
+    cppzmq Threads::Threads PRIVATE qbook_logging)
+  target_compile_options(qbook_pipeline PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
 if(BUILD_TESTING)
   # Catch2 v3.8.1，提交 2b60af89e23d28eefc081bc930831ee9d45ea58b。
   if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/Catch2/extras/Catch.cmake")
@@ -74,8 +112,11 @@ if(BUILD_TESTING)
     tests/orderbook_modify_tests.cpp
     tests/orderbook_reduce_tests.cpp
     tests/orderbook_l2_tests.cpp
-    tests/orderbook_invariant_tests.cpp)
-  target_link_libraries(qbook_tests PRIVATE qbook_support qbook_core qbook_logging
+    tests/orderbook_invariant_tests.cpp
+    tests/protocol_tests.cpp)
+  target_compile_definitions(qbook_tests PRIVATE
+    QBOOK_PROTOCOL_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/protocol")
+  target_link_libraries(qbook_tests PRIVATE qbook_support qbook_core qbook_protocol qbook_logging
     Catch2::Catch2WithMain Threads::Threads)
   target_compile_options(qbook_tests PRIVATE -Wall -Wextra -Wpedantic)
   include(third_party/Catch2/extras/Catch.cmake)
@@ -89,4 +130,12 @@ if(BUILD_TESTING)
   target_compile_options(qbook_allocation_tests PRIVATE -Wall -Wextra -Wpedantic)
   catch_discover_tests(qbook_allocation_tests TEST_PREFIX "allocation::"
     PROPERTIES TIMEOUT 30)
+
+  if(QBOOK_BUILD_PIPELINE)
+    add_executable(qbook_pipeline_tests tests/feed_tests.cpp tests/book_thread_tests.cpp
+      tests/pipeline_tests.cpp tests/support/FeedPublisher.cpp tests/support/RecordCollector.cpp)
+    target_link_libraries(qbook_pipeline_tests PRIVATE qbook_pipeline qbook_logging Catch2::Catch2WithMain)
+    target_compile_options(qbook_pipeline_tests PRIVATE -Wall -Wextra -Wpedantic)
+    catch_discover_tests(qbook_pipeline_tests TEST_PREFIX "pipeline::" PROPERTIES TIMEOUT 30)
+  endif()
 endif()

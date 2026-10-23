@@ -4,11 +4,11 @@ Guidance for Codex when working in this repository.
 
 ## What this is
 
-`qbook` 是参考 `nqbook` 重新开发的 C++ 限价订单簿服务，用于接收行情事件、按交易品种维护订单簿、生成快照并记录数据；它根据外部成交事件更新订单，不主动撮合买卖订单。初始方案沿用参考项目的 C++23、CMake、ZeroMQ、Arrow/Parquet，并复用已有的 `qlib` 基础库，项目代码使用命名空间 `qbook`。目标运行方式是常驻进程：行情接收、订单簿维护、数据写入三个阶段通过 SPSC 队列传递数据，独立监控线程采集指标；可视化界面在对应版本再接入。项目已完成 V0 的支持库与测试；V1 的订单簿核心与测试已完成实现和验证，标准 Debug 与 ASan/UBSan 均为 60/60 通过。网络、持久化与运行阶段留待后续版本；具体范围以需求和规格文档为准，实际构建说明见 [README.md](README.md)。
+`qbook` 是参考 `nqbook` 重新开发的 C++ 限价订单簿服务，用于接收行情事件、按交易品种维护订单簿、生成快照并记录数据；它根据外部成交事件更新订单，不主动撮合买卖订单。初始方案沿用参考项目的 C++23、CMake、ZeroMQ、Arrow/Parquet，并复用已有的 `qlib` 基础库，项目代码使用命名空间 `qbook`。目标运行方式是常驻进程：行情接收、订单簿维护、数据写入三个阶段通过 SPSC 队列传递数据，独立监控线程采集指标；可视化界面在对应版本再接入。项目已完成 V0 支持库和 V1 订单簿核心；V1 历史 Debug 与 ASan/UBSan 均为 60/60 通过。V2 已完成纯协议、Feed/Book 阶段和测试消费者，Debug 验收为 115/115 通过。持久化、正式服务入口和监控发布留待后续版本；具体范围以需求和规格文档为准，实际构建说明见 [README.md](README.md)。
 
 ## Layout
 
-以下列出当前文件与后续规划位置。Orderbook 已实现；网络阶段、持久化、main、UI 和 benchmark 仍是规划。按当前版本需要创建文件，不要一次性生成所有目录、空类或占位实现。已有文件采用不同路径时，先核对实际结构，再同步本文档。
+以下列出当前文件与后续规划位置。Orderbook、Protocol 和 Feed/Book 已实现；持久化、main、指标发布、UI 和 benchmark 仍是规划。按当前版本需要创建文件，不要一次性生成所有目录、空类或占位实现。已有文件采用不同路径时，先核对实际结构，再同步本文档。
 
 ```text
 AGENTS.md                         Codex 的仓库工作规则
@@ -19,6 +19,8 @@ docs/Sprint_Backlog.md             版本目标、任务与实际完成状态
 docs/Implementation_Plan(Vn).md    V0～V5 计划均已编写；实施状态分别记录
 CMakeLists.txt                    构建目标、依赖与测试入口
 include/PipelineTypes.h           公共队列别名、模式及 ABI 断言
+include/Protocol.h                纯协议解码、字段校验和拒绝结果
+src/Protocol.cpp                  固定布局的逐标量读取
 include/Config.h                  配置结构与加载接口
 src/Config.cpp                    配置读取和启动时校验
 src/ConfigChecks.h                私有时间算术检查，供实现及边界测试使用
@@ -41,10 +43,16 @@ src/main.cpp                      配置加载、对象组装、线程启动与�
 tests/                            订单簿及其他组件的单元测试、集成测试
 tests/support/OrderbookInspector.h 测试只读观察器，检查全部存储、索引、价位和链接
 tests/support/AllocationFailure.*  专用测试程序的普通与对齐分配替换
+tests/support/FeedPublisher.*      有限 XPUB 测试发布者，以订阅通知确认就绪
+tests/support/RecordCollector.*    有上限的测试结果收集器，join 后读取结果
+tests/support/PipelineTestSupport.h 测试线程异常边界、期限及清理
+tests/fixtures/protocol/           独立 golden bytes 与字段说明
 benchmarks/                       独立性能实验；按版本需要添加
 third_party/qlib/                 用户本地 qlib 的固定源码快照
 third_party/qlib.sha256            qlib 相对路径与 SHA-256 内容清单
-third_party/                      其他明确引入的第三方依赖
+third_party/libzmq/               固定 libzmq 4.3.5 源码与许可证
+third_party/cppzmq/               固定 cppzmq 4.10.0 源码与许可证
+third_party/                      其余固定依赖及各自 SHA-256 清单
 ui/                              监控界面；实现该功能时再建立
 docs/releases/                   本地验收记录，保留但不提交或上传 GitHub
 build/                           CMake 生成的构建产物，不手工维护、不提交
@@ -57,22 +65,26 @@ data_out/                        运行生成的数据文件，不提交
 
 ## Build
 
-支持库和核心库在 Linux / WSL2、x86-64、小端环境构建。使用 C++23、CMake 3.28 以上及 Ninja。
-当前建立 `qbook_support`、`qbook_core`、`qbook_tests` 和 `qbook_allocation_tests`，不依赖 ZMQ、Arrow、Parquet 或 UI 工具链。
+各库在 Linux / WSL2、x86-64、小端环境构建。使用 C/C++ 编译器、C++23、CMake 3.28 以上及 Ninja。
+当前建立 `qbook_support`、`qbook_core`、`qbook_protocol` 和默认启用的 `qbook_pipeline`。
 `qbook_core` 只包含真实的 `src/Orderbook.cpp`，仅公开链接 `qlib::qlib`，不依赖支持库或日志。
-普通测试含 V0 30 项及 V1 24 项；专用程序含分配自测和五项回滚测试，分配替换只链接到专用程序。
+`qbook_protocol` 仅依赖公共类型；`QBOOK_BUILD_PIPELINE=OFF` 不查找或构建 ZMQ，保留纯协议测试。
+`qbook_tests` 包含 V0/V1 与协议回归共 69 项；`qbook_allocation_tests` 独立链接分配替换，共 6 项。
+`qbook_pipeline_tests` 包含 Feed、Book 和真实网络/受控队列场景共 40 项，使用本机 TCP 临时端口；无发布者场景使用独占 IPC 路径。
+V2 已验证流水线关闭分支 75/75 通过，以及关闭测试时四个生产库可构建；网络测试需要允许本机 socket 的环境。
 实际环境、依赖版本和验收结果以 [README.md](README.md) 与本地 `docs/releases/` 对应版本记录为准。`docs/releases/` 按项目所有者要求不提交或上传 GitHub。
 
 qlib 使用用户本地源码的固定副本，位于 `third_party/qlib/`；逐文件内容记录在
 `third_party/qlib.sha256`。它没有可用 Git 提交，不能编造来源或用其他上游分支替代。
 构建通过真实 `qlib::qlib` 目标接入，关闭 `QLIB_BUILD_TESTS`。
-Catch2 v3、fkYAML 和 spdlog 同样保留固定源码及许可证，配置时不自动下载。
+Catch2 v3、fkYAML、spdlog、libzmq 4.3.5 与 cppzmq 4.10.0 同样保留固定源码及许可证，配置时不自动下载。
+流水线通过官方 `cppzmq` 接口目标链接官方 `libzmq` 动态库；归档哈希和内容清单见 README。
 
 从 **qbook 仓库根目录** 执行，常规构建持续复用 `build/debug`：
 
 ```bash
 cmake -S . -B build/debug -G Ninja \
-  -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON \
+  -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON -DQBOOK_BUILD_PIPELINE=ON \
   -DQBOOK_BUILD_SERVICE=OFF -DQBOOK_BUILD_BENCHMARKS=OFF \
   -DQLIB_BUILD_TESTS=OFF
 cmake --build build/debug --parallel 4
@@ -81,8 +93,8 @@ ctest --test-dir build/debug --output-on-failure --no-tests=error
 ```
 
 `--show-only` 只确认注册数量；必须实际执行测试才可写通过。
-`BUILD_TESTING=OFF` 只构建支持库和核心库，不要求 Catch2。当前对服务或 benchmark 开关为 ON 明确拒绝配置。
-当前没有 `qbook` 服务可执行文件，不能宣称已接收行情、写入 Parquet 或完成完整启停。
+`BUILD_TESTING=OFF` 按流水线开关构建生产库，不要求 Catch2 或测试辅助。当前对服务或 benchmark 开关为 ON 明确拒绝配置。
+当前没有 `qbook` 服务可执行文件；V2 测试链路不代表已写入 Parquet 或完成正式服务启停。
 
 新增版本时只接入当前功能所需的依赖和实际源码，不创建空类或伪服务目标。
 完整服务、发布构建、信号停止、文件验收及 UI 命令随对应版本落实后补入 README。
@@ -114,11 +126,11 @@ ctest --test-dir build/debug --output-on-failure --no-tests=error
 
 - **并发所有权。** 订单簿只由 Book 阶段访问；相邻阶段通过各自的一条 SPSC 队列交接事件，保持单生产者、单消费者。监控只读取明确共享的原子指标，不直接遍历订单簿或队列内部。新增跨线程访问时先明确所有权、生命周期和同步关系。
 
-- **队列与停止。** 明确队列满时的等待策略和停止行为，不静默丢弃已承诺处理的事件。规划按 Feed、Book、Writer 的顺序停止并等待完成，使下游有机会排空输入，最后停止监控。保证范围应区分“已从网络接收”“已成功入队”和“已写入文件”；SPSC 背压不能直接证明 ZMQ PUB/SUB 端到端无丢失。
+- **队列与停止。** 明确队列满时的等待策略和停止行为，不静默丢弃已承诺处理的事件。正常停止按 Feed、Book、下游消费者的顺序停止并等待完成，使下游有机会排空输入。V2 下游为测试 Collector，V3 才接入 Writer；监控阶段接入后最后停止。保证范围应区分“已从网络接收”“已成功入队”和“已写入文件”；SPSC 背压不能直接证明 ZMQ PUB/SUB 端到端无丢失。
 
 - **配置。** C++ 运行参数集中放入 `config/config.yaml`，由配置结构承载并经构造函数传给组件，不添加命令行或环境变量覆盖机制。UI 的构建参数由后续 UI 版本管理，不覆盖 C++ 配置。对容量、批量大小、采样周期等参数在启动时做必要校验；缺失项是否采用默认值以及非法配置如何报错，按规格统一处理。
 
-- **日志与错误。** 日志统一经过选定的日志库，初始方案使用 spdlog。正常启动、停止用 `info`，可恢复异常用 `warn`，无法继续服务的错误需明确记录并进入约定的失败路径。避免在每条正常行情或满队列重试循环中打印日志；持久化失败不能被当作成功，不为追求简短代码随意吞异常或调用 `abort()`。
+- **日志与错误。** 日志统一经过选定的日志库，使用固定 spdlog。正常启动、停止用 `info`，可恢复异常用 `warn`，无法继续服务的错误需明确记录并进入约定的失败路径。避免在每条正常行情或满队列重试循环中打印日志；持久化失败不能被当作成功，不为追求简短代码随意吞异常或调用 `abort()`。
 
 - **资源与持久化。** 使用 RAII 管理线程、套接字、文件和拥有所有权的内存；索引或侵入式链接中的裸指针必须有明确生命周期。Parquet 按记录类型分开写入，列定义与追加顺序保持一致，批量大小来自配置。计数“已追加到缓冲区”不等于“已持久化到磁盘”，接口、指标和说明应准确区分。
 
