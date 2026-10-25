@@ -5,7 +5,7 @@ V0 提供公共数据契约、配置加载、故障控制和原子指标基础�
 V1 已实现独立的 `Orderbook`：新增、修改、成交、撤单、L2 绝对量更新与同步最优一档快照。
 V2 已完成纯协议、Feed 接收、Book 多品种处理、周期快照和原事件转交，全部 115 项 CTest 验收通过。
 V3 已实现五类 Parquet、Writer 阶段、正式三阶段服务及 SIGINT/SIGTERM 有序停止。
-本轮完整 Debug 154/154、Release 存储与服务 39/39、核心关闭分支 75/75 均通过。
+V3 初次验收的完整 Debug 154/154、Release 存储与服务 39/39、核心关闭分支 75/75 均通过。
 指标网络发布、UI 和 benchmark 留待 V4/V5。
 
 需求、规格、任务和实现计划均位于 [docs](docs/)。
@@ -20,7 +20,14 @@ V3 的实际命令、文件读回与故障结果集中在本地 `docs/releases/V
 目标平台为 Linux / WSL2、x86-64、小端、8 字节指针。
 需要 C/C++ 编译器、所用 C++23 特性、CMake 3.28 以上和 Ninja。
 基础依赖源码随工程保留。默认从仓库源码构建 libzmq/cppzmq，不要求系统预装 ZMQ。
-持久化默认关闭；完整 V3 需要下文的 Arrow/Parquet C++ 固定安装，准备好后配置和构建不联网。不需要 Node。
+持久化默认关闭；完整 V3 使用开发环境提供的 Arrow/Parquet C++ 26.0.0，准备好后配置和构建不联网。不需要 Node。
+
+当前使用 [.devcontainer/devcontainer.json](.devcontainer/devcontainer.json) 指定的 `cpp-dev:latest` 开发容器，
+工作目录为 `/mnt/d/Desktop/unsw/qbook`。以下构建、测试和运行命令均在容器内、仓库根目录执行。
+容器已安装 Arrow/Parquet 开发包和动态库 `26.0.0-1`，CMake 包目录位于
+`/usr/lib/x86_64-linux-gnu/cmake/{Arrow,Parquet}`；无需运行项目的依赖安装脚本。
+当前仓库未提供该镜像的 Dockerfile，也未固定镜像 digest；`cpp-dev:latest` 本身不足以在另一台机器复现环境。
+保留的包锁文件与恢复脚本只固定历史 Arrow 安装内容，不能代替完整镜像构建资料。
 
 从仓库根目录执行：
 
@@ -61,25 +68,33 @@ V1 的历史 sanitizer 检查覆盖全部 60 项测试，包含分配故障用�
 `qbook_core` 仅链接 `qlib::qlib`，独立于支持库、日志、网络和文件依赖。
 `QBOOK_BUILD_BENCHMARKS=ON` 仍明确拒绝配置。
 
-完整 V3 从仓库根目录构建并验收：
+完整 V3 在开发容器中构建并验收，显式选择容器系统包：
 
 ```bash
-python3 scripts/install_arrow_dependencies.py
 cmake -S . -B build/debug -G Ninja \
   -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON \
   -DQBOOK_BUILD_PIPELINE=ON -DQBOOK_BUILD_PERSISTENCE=ON \
-  -DQBOOK_BUILD_SERVICE=ON -DQBOOK_BUILD_BENCHMARKS=OFF -DQLIB_BUILD_TESTS=OFF
+  -DQBOOK_BUILD_SERVICE=ON -DQBOOK_BUILD_BENCHMARKS=OFF -DQLIB_BUILD_TESTS=OFF \
+  -DArrow_DIR=/usr/lib/x86_64-linux-gnu/cmake/Arrow \
+  -DParquet_DIR=/usr/lib/x86_64-linux-gnu/cmake/Parquet
 cmake --build build/debug --parallel 4
 ctest --test-dir build/debug --show-only
 ctest --test-dir build/debug --output-on-failure --no-tests=error
 ```
 
-已完成固定安装时不必重复第一条；安装脚本重提取文件，运行前先停止使用这些库的程序。
+跨宿主机与容器不要直接沿用含旧绝对路径的 CMake 缓存；需要时用 `cmake --fresh` 加上同样的配置参数重新生成。
+`Arrow_DIR` 和 `Parquet_DIR` 指向同一环境中的安装，不会自动使用项目 `.deps`。
 网络测试需要允许本机 TCP/IPC socket，进程测试需要允许 fork/exec 和向自身子进程发送信号。
 V3 验收于 2026-10-23 实际执行：Debug 154/154（25.30 秒），Release 的
 `storage::` / `service::` 39/39（14.94 秒），关闭三个能力开关后的核心 75/75（3.51 秒）。
 关闭测试的完整服务配置可构建，编译源和目标不包含 Catch2 或测试代码；
 服务缺少 PIPELINE 或 PERSISTENCE 的配置均明确失败。这些耗时仅为测试运行记录。
+
+2026-10-25 切换开发容器系统库后，完整 Debug 重新发现并运行 **154/154（15.97 秒）**。
+确认缓存、链接命令和全部七个程序的运行库路径不含 `.deps` 后，已删除项目内的旧安装。
+删除后重新配置和增量构建成功，`storage::` / `service::` 再次 **39/39 通过（6.20 秒）**，
+包含 ZSTD Parquet 读回、真实网络及 SIGINT/SIGTERM 停止。随后按用户要求清理了 `build/`；下次按上述命令重新构建。
+本轮未重跑 Release、核心关闭分支或 sanitizer，详情追加在本地 `docs/releases/V3.md`。
 
 ## 固定依赖
 
@@ -91,7 +106,7 @@ V3 验收于 2026-10-23 实际执行：Debug 154/154（25.30 秒），Release �
 | spdlog | 1.17.0，bundled fmt 12.1.0；从同一 nqbook 提交的 `third_party/spdlog` 提取。 | `third_party/spdlog/include/spdlog`，`qbook_logging`，MIT；默认 header-only，使用 bundled fmt。 |
 | libzmq | [官方 v4.3.5 源码](https://codeload.github.com/zeromq/libzmq/tar.gz/refs/tags/v4.3.5)，完整 811 个文件；[内容清单](third_party/libzmq.sha256)。 | `third_party/libzmq`，官方 `libzmq` 动态库目标，MPL-2.0。 |
 | cppzmq | [官方 v4.10.0 源码](https://codeload.github.com/zeromq/cppzmq/tar.gz/refs/tags/v4.10.0)，完整 34 个文件；[内容清单](third_party/cppzmq.sha256)。 | `third_party/cppzmq`，官方 `cppzmq` 接口目标传递链接 `libzmq`，MIT。 |
-| Arrow C++ / Parquet C++ | Apache 官方 Ubuntu noble amd64 包，均为 **26.0.0-1**；[固定包清单](cmake/arrow-dependencies.lock.json) 保存全部 URL、版本与 SHA-256。 | `.deps/arrow-26.0.0/usr`；官方 `Arrow::arrow_shared`、`Parquet::parquet_shared`，Apache-2.0；使用动态链接。 |
+| Arrow C++ / Parquet C++ | 当前开发容器的 Ubuntu noble amd64 包，均为 **26.0.0-1**；[历史固定包清单](cmake/arrow-dependencies.lock.json) 保留原安装的 URL、版本与 SHA-256。 | 容器 `/usr`；官方 `Arrow::arrow_shared`、`Parquet::parquet_shared`，Apache-2.0；使用动态链接。 |
 
 nqbook 的已核实远程为 `git@github.com:Zhou-London/nqbook.git`。
 提取使用该提交的 Git 对象，原 nqbook 工作区未改动。
@@ -124,18 +139,22 @@ CMake 通过 `add_subdirectory` 使用原项目目标，不自动下载依赖。
 通信库的测试、文档、性能工具、draft、CURVE、WebSocket 关闭；不引入 libbsd、libsodium、OpenPGM 或 NORM。
 生成的 `libzmq.so.5.2.5` / SONAME 5 属于库 ABI 编号，源码版本仍是 4.3.5。
 
-Arrow/Parquet 安装使用 [固定安装脚本](scripts/install_arrow_dependencies.py)，要求
-Ubuntu 24.04 amd64 / WSL2、Python 3.11+ 和 `dpkg-deb`。脚本校验 37 个固定包，
-仅向 `.deps/arrow-26.0.0` 解包，不修改系统包数据库；缓存齐全时可加 `--offline`。
-来源为 [Apache 官方包仓库](https://packages.apache.org/artifactory/arrow/ubuntu/) 与 Ubuntu 官方仓库。
-各包许可证保留在该前缀的 `usr/share/doc/<package>/copyright`，归档保留在 `packages/`。
-固定安装和归档不提交 Git；锁清单和脚本用于重建。它依赖 Ubuntu 基础运行库，不是完整系统镜像。
+当前容器由系统安装提供 Arrow/Parquet，头文件位于 `/usr/include/arrow`、`/usr/include/parquet`，
+许可证位于 `/usr/share/doc/<package>/copyright`。容器现有包数据库可以确认已安装版本，
+但当前可见资料不能确认镜像构建时使用的下载地址和完整安装步骤。
+
+[历史固定安装脚本](scripts/install_arrow_dependencies.py) 和包锁文件继续保留，
+因为可复现的容器构建流程尚未接替它们。脚本要求 Ubuntu 24.04 amd64、Python 3.11+ 和 `dpkg-deb`，
+校验 37 个包后向 `.deps/arrow-26.0.0` 解包，不修改系统包数据库；缓存齐全时可加 `--offline`。
+锁文件记录 [Apache 官方包仓库](https://packages.apache.org/artifactory/arrow/ubuntu/) 与 Ubuntu 官方仓库的历史来源。
+这些文件用于恢复旧包内容，不是当前容器的构建步骤，脚本产物不会被 CMake 自动选中；
+本轮不验证非容器的本地恢复构建方式。`.deps/` 仍在 Git 忽略清单中。
 
 [CMake 接入](cmake/ArrowDependency.cmake) 只在持久化开启时查找 **26.0.0 EXACT**。
-真实包目录为前缀下的 `lib/x86_64-linux-gnu/cmake/{Arrow,Parquet}`，实际库为
-`libarrow.so.2600.0.0`、`libparquet.so.2600.0.0`。ZSTD 使用固定 Ubuntu 包
-`1.5.5+dfsg2-2build1.1`，已用真实 C++ 编解码与文件读取验证。
-本地链接写入传递依赖所需的 ELF RPATH，无需手工设置 `LD_LIBRARY_PATH`；移动仓库后重新配置、链接。
+当前实际库为 `/usr/lib/x86_64-linux-gnu/libarrow.so.2600.0.0` 和
+`/usr/lib/x86_64-linux-gnu/libparquet.so.2600.0.0`，ZSTD 系统包为 `1.5.5+dfsg2-2build1.1`。
+依赖接入不再设置项目 `.deps` 的绝对 RPATH，也不修改 `LD_LIBRARY_PATH`；
+Arrow/Parquet 的运行时依赖由容器系统库解析。项目自行构建的 libzmq 仍通过构建目录的运行库路径加载。
 
 ## 配置
 

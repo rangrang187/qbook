@@ -59,10 +59,11 @@ third_party/qlib.sha256            qlib 相对路径与 SHA-256 内容清单
 third_party/libzmq/               固定 libzmq 4.3.5 源码与许可证
 third_party/cppzmq/               固定 cppzmq 4.10.0 源码与许可证
 third_party/                      其余固定依赖及各自 SHA-256 清单
-cmake/ArrowDependency.cmake       官方 Arrow/Parquet 目标及本地运行库接入
-cmake/arrow-dependencies.lock.json 固定 Ubuntu 包来源、版本、哈希与许可证路径
-scripts/install_arrow_dependencies.py 校验并提取固定包，不修改系统包数据库
-.deps/arrow-26.0.0/               本地固定安装、归档和许可证，不提交
+cmake/ArrowDependency.cmake       开发环境提供的固定 Arrow/Parquet 及官方共享库目标
+cmake/arrow-dependencies.lock.json 历史固定 Ubuntu 包来源、版本、哈希与许可证路径
+scripts/install_arrow_dependencies.py 历史固定包恢复工具，容器内构建无需运行
+.devcontainer/devcontainer.json  当前开发容器、工作目录和挂载配置
+.deps/arrow-26.0.0/               历史安装脚本的输出位置，构建不自动选择，不提交
 ui/                              监控界面；实现该功能时再建立
 docs/releases/                   本地验收记录，保留但不提交或上传 GitHub
 build/                           CMake 生成的构建产物，不手工维护、不提交
@@ -85,7 +86,8 @@ data_out/                        运行生成的数据文件，不提交
 `qbook_pipeline_tests` 包含 Feed、Book 和真实网络/受控队列场景共 40 项，使用本机 TCP 临时端口；无发布者场景使用独占 IPC 路径。
 V2 已验证流水线关闭分支 75/75 通过，以及关闭测试时四个生产库可构建；网络测试需要允许本机 socket 的环境。
 完整 V3 注册 `storage::` 18 项和 `service::` 21 项，加上前置 115 项共 154 项。
-本轮完整 Debug 154/154、核心分支 75/75 和 Release 文件/服务 39/39 均已实际执行通过。
+V3 初次验收的完整 Debug 154/154、核心分支 75/75 和 Release 文件/服务 39/39 均已实际执行通过。
+2026-10-25 开发容器系统库切换后 Debug 重新通过 154/154；删除项目 `.deps` 后，存储和服务复验 39/39 通过。随后按用户要求清理了 `build/`，下次按 README 重新构建。
 关闭测试的完整生产构建不含测试源码或目标；SERVICE 缺少任一前置开关时均明确拒绝配置。
 实际环境、依赖版本和验收结果以 [README.md](README.md) 与本地 `docs/releases/` 对应版本记录为准。`docs/releases/` 按项目所有者要求不提交或上传 GitHub。
 
@@ -94,9 +96,11 @@ qlib 使用用户本地源码的固定副本，位于 `third_party/qlib/`；逐�
 构建通过真实 `qlib::qlib` 目标接入，关闭 `QLIB_BUILD_TESTS`。
 Catch2 v3、fkYAML、spdlog、libzmq 4.3.5 与 cppzmq 4.10.0 同样保留固定源码及许可证，配置时不自动下载。
 流水线通过官方 `cppzmq` 接口目标链接官方 `libzmq` 动态库；归档哈希和内容清单见 README。
-V3 使用 Apache 官方 Ubuntu 24.04 amd64 Arrow/Parquet 26.0.0-1 包，安装到 `.deps/arrow-26.0.0/usr`。
-固定包和运行依赖由锁文件及安装脚本管理，链接真实 `Arrow::arrow_shared`、`Parquet::parquet_shared`，配置时不下载。
-本地 RPATH 含仓库绝对路径；移动目录后重新配置和链接。固定安装依赖基础系统运行库，不等于完整系统镜像。
+当前开发容器在 `/usr` 提供 Ubuntu 24.04 amd64 Arrow/Parquet 26.0.0-1，
+链接真实 `Arrow::arrow_shared`、`Parquet::parquet_shared`，保持 26.0.0 EXACT，配置时不下载。
+CMake 不再自动选择 `.deps`，不注入其绝对 RPATH 或修改 `LD_LIBRARY_PATH`。
+`.devcontainer/devcontainer.json` 使用 `cpp-dev:latest`；仓库尚无 Dockerfile 或固定镜像 digest。
+历史包锁文件与恢复脚本继续保留，它们不能单独复现整个容器。
 
 从 **qbook 仓库根目录** 执行，常规构建持续复用 `build/debug`：
 
@@ -113,8 +117,9 @@ ctest --test-dir build/debug --output-on-failure --no-tests=error
 
 `--show-only` 只确认注册数量；必须实际执行测试才可写通过。
 `BUILD_TESTING=OFF` 按能力开关构建生产库和服务，不要求 Catch2 或测试辅助。benchmark 开关为 ON 仍明确拒绝配置。
-完整 V3 先执行 `python3 scripts/install_arrow_dependencies.py`，再将上面的 PERSISTENCE 和 SERVICE 同时设为 ON。
-已缓存全部固定包时，安装脚本支持 `--offline`。安装会重新提取同版本文件，应在使用这些库的程序停止后执行。
+完整 V3 在容器内将上面的 PERSISTENCE 和 SERVICE 同时设为 ON，并显式指定
+`-DArrow_DIR=/usr/lib/x86_64-linux-gnu/cmake/Arrow` 和 `-DParquet_DIR=/usr/lib/x86_64-linux-gnu/cmake/Parquet`。
+无需运行历史安装脚本；跨宿主机和容器时重新生成含绝对路径的旧缓存，具体命令见 README。
 正式服务从当前工作目录读取 `config/config.yaml`，在仓库根执行 `./build/debug/qbook`；SIGINT/SIGTERM 触发有序停止。
 五类输出在新建的独占运行目录中保存；成功 Add 的指标不等于已关闭文件或断电安全。
 

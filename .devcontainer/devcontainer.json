@@ -1,0 +1,20 @@
+{
+  "name": "qbook C++",
+  "image": "cpp-dev:latest",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/mnt/d/Desktop/unsw/qbook,type=bind",
+  "workspaceFolder": "/mnt/d/Desktop/unsw/qbook",
+  "mounts": [
+    "source=qbook-codex-b4c3ce40e2bd,target=/home/richard/.codex,type=volume"
+  ],
+  "containerEnv": {
+    "CODEX_HOME": "/home/richard/.codex",
+    "CODEX_SQLITE_HOME": "/home/richard/.codex"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "openai.chatgpt"
+      ]
+    }
+  }
+}
