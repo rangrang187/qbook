@@ -1,0 +1,378 @@
+{
+  "installation": "arrow-26.0.0",
+  "platform": "Ubuntu 24.04 amd64 / WSL2",
+  "arrow_version": "26.0.0",
+  "apache_debian_revision": "26.0.0-1",
+  "packages": [
+    {
+      "package": "libarrow-dev",
+      "version": "26.0.0-1",
+      "architecture": "amd64",
+      "filename": "libarrow-dev_26.0.0-1_amd64.deb",
+      "url": "https://packages.apache.org/artifactory/arrow/ubuntu/pool/noble/main/a/apache-arrow/libarrow-dev_26.0.0-1_amd64.deb",
+      "sha256": "398875472937ca6c7561254c221219bea2af5e13377310ff53d943e4ea787c81",
+      "size": 14552290,
+      "license_file": "usr/share/doc/libarrow-dev/copyright"
+    },
+    {
+      "package": "libarrow2600",
+      "version": "26.0.0-1",
+      "architecture": "amd64",
+      "filename": "libarrow2600_26.0.0-1_amd64.deb",
+      "url": "https://packages.apache.org/artifactory/arrow/ubuntu/pool/noble/main/a/apache-arrow/libarrow2600_26.0.0-1_amd64.deb",
+      "sha256": "938ccbab2a9a64e47bd2310703920aaa605584e81de2e5109307a1ba30e5a667",
+      "size": 5113400,
+      "license_file": "usr/share/doc/libarrow2600/copyright"
+    },
+    {
+      "package": "libparquet-dev",
+      "version": "26.0.0-1",
+      "architecture": "amd64",
+      "filename": "libparquet-dev_26.0.0-1_amd64.deb",
+      "url": "https://packages.apache.org/artifactory/arrow/ubuntu/pool/noble/main/a/apache-arrow/libparquet-dev_26.0.0-1_amd64.deb",
+      "sha256": "bb6df2108237bc35ee7b61f86d64579d0d0ee27610f49bb2216023abb515b3da",
+      "size": 1714548,
+      "license_file": "usr/share/doc/libparquet-dev/copyright"
+    },
+    {
+      "package": "libparquet2600",
+      "version": "26.0.0-1",
+      "architecture": "amd64",
+      "filename": "libparquet2600_26.0.0-1_amd64.deb",
+      "url": "https://packages.apache.org/artifactory/arrow/ubuntu/pool/noble/main/a/apache-arrow/libparquet2600_26.0.0-1_amd64.deb",
+      "sha256": "572c6e85a621cd5d3e71b115d3e8c38a92ed41837b5b66722169be781587280c",
+      "size": 1197090,
+      "license_file": "usr/share/doc/libparquet2600/copyright"
+    },
+    {
+      "package": "libprotobuf32t64",
+      "version": "3.21.12-8.2ubuntu0.4",
+      "architecture": "amd64",
+      "filename": "libprotobuf32t64_3.21.12-8.2ubuntu0.4_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/p/protobuf/libprotobuf32t64_3.21.12-8.2ubuntu0.4_amd64.deb",
+      "sha256": "765aec7fc6c7c14aea8d10677c17617d71acc5103ad580f0e97bff903acccdaf",
+      "size": 922780,
+      "license_file": "usr/share/doc/libprotobuf32t64/copyright"
+    },
+    {
+      "package": "libsnappy1v5",
+      "version": "1.1.10-1build1",
+      "architecture": "amd64",
+      "filename": "libsnappy1v5_1.1.10-1build1_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/s/snappy/libsnappy1v5_1.1.10-1build1_amd64.deb",
+      "sha256": "c44dfa3b8be7c2873efb770890cb282a36a7e59b3b1900cb50d99f92e6be2da5",
+      "size": 28634,
+      "license_file": "usr/share/doc/libsnappy1v5/copyright"
+    },
+    {
+      "package": "liburiparser1",
+      "version": "0.9.7+dfsg-2build1",
+      "architecture": "amd64",
+      "filename": "liburiparser1_0.9.7+dfsg-2build1_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/universe/u/uriparser/liburiparser1_0.9.7+dfsg-2build1_amd64.deb",
+      "sha256": "cfbe2c305bacb90c0709a989e997cb2a1a362eebde9dc22b95c254bfa9297c57",
+      "size": 35816,
+      "license_file": "usr/share/doc/liburiparser1/copyright"
+    },
+    {
+      "package": "libthrift-0.19.0t64",
+      "version": "0.19.0-2.1build5",
+      "architecture": "amd64",
+      "filename": "libthrift-0.19.0t64_0.19.0-2.1build5_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/universe/t/thrift/libthrift-0.19.0t64_0.19.0-2.1build5_amd64.deb",
+      "sha256": "62ce7607b29c84de13e8348112d48802d41bd5c45a75622c08552e4f54bbcbd0",
+      "size": 267556,
+      "license_file": "usr/share/doc/libthrift-0.19.0t64/copyright"
+    },
+    {
+      "package": "libsnappy-dev",
+      "version": "1.1.10-1build1",
+      "architecture": "amd64",
+      "filename": "libsnappy-dev_1.1.10-1build1_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/s/snappy/libsnappy-dev_1.1.10-1build1_amd64.deb",
+      "sha256": "f40169c7a24cc4baae0032077b4b06263cc436095786d30bbde655ce1f68f0b3",
+      "size": 42382,
+      "license_file": "usr/share/doc/libsnappy-dev/copyright"
+    },
+    {
+      "package": "libbrotli-dev",
+      "version": "1.1.0-2build2",
+      "architecture": "amd64",
+      "filename": "libbrotli-dev_1.1.0-2build2_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/b/brotli/libbrotli-dev_1.1.0-2build2_amd64.deb",
+      "sha256": "2d56213247be7aca429c55c6136e371b670e2275c8d455ef3fe6a737f5b7da7b",
+      "size": 353230,
+      "license_file": "usr/share/doc/libbrotli-dev/copyright"
+    },
+    {
+      "package": "libssl-dev",
+      "version": "3.0.13-0ubuntu3.16",
+      "architecture": "amd64",
+      "filename": "libssl-dev_3.0.13-0ubuntu3.16_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl-dev_3.0.13-0ubuntu3.16_amd64.deb",
+      "sha256": "2b4734df0475e305ac03abb0a2cc5659651ed37ef02d967a1c4033a154cf714b",
+      "size": 2408684,
+      "license_file": "usr/share/doc/libssl-dev/copyright"
+    },
+    {
+      "package": "libprotobuf-dev",
+      "version": "3.21.12-8.2ubuntu0.4",
+      "architecture": "amd64",
+      "filename": "libprotobuf-dev_3.21.12-8.2ubuntu0.4_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/p/protobuf/libprotobuf-dev_3.21.12-8.2ubuntu0.4_amd64.deb",
+      "sha256": "acc0ec3dee7e496451656170e0210c56efd49ffcff243df8ce9893aa55f44e24",
+      "size": 1413370,
+      "license_file": "usr/share/doc/libprotobuf-dev/copyright"
+    },
+    {
+      "package": "libprotobuf-lite32t64",
+      "version": "3.21.12-8.2ubuntu0.4",
+      "architecture": "amd64",
+      "filename": "libprotobuf-lite32t64_3.21.12-8.2ubuntu0.4_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/p/protobuf/libprotobuf-lite32t64_3.21.12-8.2ubuntu0.4_amd64.deb",
+      "sha256": "231a7b9b99e58c1601cd82286f0ed7eb18eaeca24f71350cf4fb13c9d8031ecf",
+      "size": 238890,
+      "license_file": "usr/share/doc/libprotobuf-lite32t64/copyright"
+    },
+    {
+      "package": "libprotoc-dev",
+      "version": "3.21.12-8.2ubuntu0.4",
+      "architecture": "amd64",
+      "filename": "libprotoc-dev_3.21.12-8.2ubuntu0.4_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/p/protobuf/libprotoc-dev_3.21.12-8.2ubuntu0.4_amd64.deb",
+      "sha256": "99e219d77db02b7eae82be2660945582c29322d61092846320f7eb4ca10a24de",
+      "size": 1055416,
+      "license_file": "usr/share/doc/libprotoc-dev/copyright"
+    },
+    {
+      "package": "libprotoc32t64",
+      "version": "3.21.12-8.2ubuntu0.4",
+      "architecture": "amd64",
+      "filename": "libprotoc32t64_3.21.12-8.2ubuntu0.4_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/p/protobuf/libprotoc32t64_3.21.12-8.2ubuntu0.4_amd64.deb",
+      "sha256": "a135645fed6c3c766cc0cf23f49e1fdf766a5611a3c80ac6f2e62f8ed6a17e45",
+      "size": 682946,
+      "license_file": "usr/share/doc/libprotoc32t64/copyright"
+    },
+    {
+      "package": "protobuf-compiler",
+      "version": "3.21.12-8.2ubuntu0.4",
+      "architecture": "amd64",
+      "filename": "protobuf-compiler_3.21.12-8.2ubuntu0.4_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/universe/p/protobuf/protobuf-compiler_3.21.12-8.2ubuntu0.4_amd64.deb",
+      "sha256": "10dc45fcc354dcddb50f35b73ec11ed67f55053476ddc8d3f520e2bfcfbc8016",
+      "size": 28964,
+      "license_file": "usr/share/doc/protobuf-compiler/copyright"
+    },
+    {
+      "package": "liblz4-dev",
+      "version": "1.9.4-1build1.1",
+      "architecture": "amd64",
+      "filename": "liblz4-dev_1.9.4-1build1.1_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/l/lz4/liblz4-dev_1.9.4-1build1.1_amd64.deb",
+      "sha256": "92144951b88d2bb4dd6ea5b85cab6a63e86109a1a6bb0953ada7ba9714ea0042",
+      "size": 87642,
+      "license_file": "usr/share/doc/liblz4-dev/copyright"
+    },
+    {
+      "package": "libzstd-dev",
+      "version": "1.5.5+dfsg2-2build1.1",
+      "architecture": "amd64",
+      "filename": "libzstd-dev_1.5.5+dfsg2-2build1.1_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/libz/libzstd/libzstd-dev_1.5.5+dfsg2-2build1.1_amd64.deb",
+      "sha256": "6c9d2b5677a4677e9ead62f74723bb919113621a8028ed543a4d78952d54d165",
+      "size": 363956,
+      "license_file": "usr/share/doc/libzstd-dev/copyright"
+    },
+    {
+      "package": "libre2-dev",
+      "version": "20230301-3build1",
+      "architecture": "amd64",
+      "filename": "libre2-dev_20230301-3build1_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/r/re2/libre2-dev_20230301-3build1_amd64.deb",
+      "sha256": "40fea08c65ae6649027b1a6fe2a31d6848cabd393b276fccc6943559bd36f25a",
+      "size": 269070,
+      "license_file": "usr/share/doc/libre2-dev/copyright"
+    },
+    {
+      "package": "libre2-10",
+      "version": "20230301-3build1",
+      "architecture": "amd64",
+      "filename": "libre2-10_20230301-3build1_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/r/re2/libre2-10_20230301-3build1_amd64.deb",
+      "sha256": "4ce429c1254f57c96feb80536fe4418ea326603fa797d8311a50f946273fd29b",
+      "size": 168028,
+      "license_file": "usr/share/doc/libre2-10/copyright"
+    },
+    {
+      "package": "libbz2-dev",
+      "version": "1.0.8-5.1ubuntu0.1",
+      "architecture": "amd64",
+      "filename": "libbz2-dev_1.0.8-5.1ubuntu0.1_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/b/bzip2/libbz2-dev_1.0.8-5.1ubuntu0.1_amd64.deb",
+      "sha256": "f055bb5cb47117020a76dc40fcdb8164f4fa529df2b7f485faacc0b0f5083614",
+      "size": 33608,
+      "license_file": "usr/share/doc/libbz2-dev/copyright"
+    },
+    {
+      "package": "liburiparser-dev",
+      "version": "0.9.7+dfsg-2build1",
+      "architecture": "amd64",
+      "filename": "liburiparser-dev_0.9.7+dfsg-2build1_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/universe/u/uriparser/liburiparser-dev_0.9.7+dfsg-2build1_amd64.deb",
+      "sha256": "4c9034ef617a4956d095ff9b67ce4d480c19058ac0724ca92c23d8b6cca0d792",
+      "size": 15042,
+      "license_file": "usr/share/doc/liburiparser-dev/copyright"
+    },
+    {
+      "package": "libutf8proc-dev",
+      "version": "2.9.0-1build1",
+      "architecture": "amd64",
+      "filename": "libutf8proc-dev_2.9.0-1build1_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/universe/u/utf8proc/libutf8proc-dev_2.9.0-1build1_amd64.deb",
+      "sha256": "ef82f3d0429cfb500d8503d28b6fd59958d481914bdf70202e6d6ef7014357ff",
+      "size": 74116,
+      "license_file": "usr/share/doc/libutf8proc-dev/copyright"
+    },
+    {
+      "package": "libutf8proc3",
+      "version": "2.9.0-1build1",
+      "architecture": "amd64",
+      "filename": "libutf8proc3_2.9.0-1build1_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/universe/u/utf8proc/libutf8proc3_2.9.0-1build1_amd64.deb",
+      "sha256": "994bfddf2f971a6c314d478647f319f128d4949d8c00169f00e45ec7a96e5b62",
+      "size": 70606,
+      "license_file": "usr/share/doc/libutf8proc3/copyright"
+    },
+    {
+      "package": "nlohmann-json3-dev",
+      "version": "3.11.3-1",
+      "architecture": "all",
+      "filename": "nlohmann-json3-dev_3.11.3-1_all.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/universe/n/nlohmann-json3/nlohmann-json3-dev_3.11.3-1_all.deb",
+      "sha256": "85e4e95dc4bdc6034d593e1933ee88e085319fee36cae83c178e8ddc1a66e8fd",
+      "size": 189676,
+      "license_file": "usr/share/doc/nlohmann-json3-dev/copyright"
+    },
+    {
+      "package": "libcurl4-openssl-dev",
+      "version": "8.5.0-2ubuntu10.16",
+      "architecture": "amd64",
+      "filename": "libcurl4-openssl-dev_8.5.0-2ubuntu10.16_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/c/curl/libcurl4-openssl-dev_8.5.0-2ubuntu10.16_amd64.deb",
+      "sha256": "371ce08af1c08bf5757467b306a040ea1d40de4e9c4acf20cabc3dde3c18a9b6",
+      "size": 446636,
+      "license_file": "usr/share/doc/libcurl4-openssl-dev/copyright"
+    },
+    {
+      "package": "libthrift-dev",
+      "version": "0.19.0-2.1build5",
+      "architecture": "amd64",
+      "filename": "libthrift-dev_0.19.0-2.1build5_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/universe/t/thrift/libthrift-dev_0.19.0-2.1build5_amd64.deb",
+      "sha256": "a7bea5668df634513d92a07fdf81d2ba354e131f403eee41bcf6c6d91c3c5099",
+      "size": 462276,
+      "license_file": "usr/share/doc/libthrift-dev/copyright"
+    },
+    {
+      "package": "libbrotli1",
+      "version": "1.1.0-2build2",
+      "architecture": "amd64",
+      "filename": "libbrotli1_1.1.0-2build2_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/b/brotli/libbrotli1_1.1.0-2build2_amd64.deb",
+      "sha256": "74492419b8fda803774b8c9acef6afc5d2f9ff31782635aae212906adae7b277",
+      "size": 330730,
+      "license_file": "usr/share/doc/libbrotli1/copyright"
+    },
+    {
+      "package": "libbz2-1.0",
+      "version": "1.0.8-5.1ubuntu0.1",
+      "architecture": "amd64",
+      "filename": "libbz2-1.0_1.0.8-5.1ubuntu0.1_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/b/bzip2/libbz2-1.0_1.0.8-5.1ubuntu0.1_amd64.deb",
+      "sha256": "36ee08b00b1ee5018b2fce02881b7d2d73c9b4e32990bde3388400d86c48126a",
+      "size": 34562,
+      "license_file": "usr/share/doc/libbz2-1.0/copyright"
+    },
+    {
+      "package": "libssl3t64",
+      "version": "3.0.13-0ubuntu3.16",
+      "architecture": "amd64",
+      "filename": "libssl3t64_3.0.13-0ubuntu3.16_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl3t64_3.0.13-0ubuntu3.16_amd64.deb",
+      "sha256": "219f43b1cd836a4da550938db5fda93160d269d39a4edcf1f1ce698a470db797",
+      "size": 1945300,
+      "license_file": "usr/share/doc/libssl3t64/copyright"
+    },
+    {
+      "package": "libcurl4t64",
+      "version": "8.5.0-2ubuntu10.16",
+      "architecture": "amd64",
+      "filename": "libcurl4t64_8.5.0-2ubuntu10.16_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/c/curl/libcurl4t64_8.5.0-2ubuntu10.16_amd64.deb",
+      "sha256": "8196381b41f0078083a2a52b43f7e7ca9b0b79e5325451bf3948e4af7693cd8d",
+      "size": 344412,
+      "license_file": "usr/share/doc/libcurl4t64/copyright"
+    },
+    {
+      "package": "liblz4-1",
+      "version": "1.9.4-1build1.1",
+      "architecture": "amd64",
+      "filename": "liblz4-1_1.9.4-1build1.1_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/l/lz4/liblz4-1_1.9.4-1build1.1_amd64.deb",
+      "sha256": "319331270d5cc52d5ebffe51c941d7b01b432bc402c2924b557209a64d4ecbad",
+      "size": 63062,
+      "license_file": "usr/share/doc/liblz4-1/copyright"
+    },
+    {
+      "package": "libzstd1",
+      "version": "1.5.5+dfsg2-2build1.1",
+      "architecture": "amd64",
+      "filename": "libzstd1_1.5.5+dfsg2-2build1.1_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/libz/libzstd/libzstd1_1.5.5+dfsg2-2build1.1_amd64.deb",
+      "sha256": "dfcf25061e07aad7efd3f4f880ba5ad4d4d09ebe7fc8cc77ab6b8a161d6d4727",
+      "size": 299472,
+      "license_file": "usr/share/doc/libzstd1/copyright"
+    },
+    {
+      "package": "zlib1g",
+      "version": "1:1.3.dfsg-3.1ubuntu2.3",
+      "architecture": "amd64",
+      "filename": "zlib1g_1.3.dfsg-3.1ubuntu2.3_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/z/zlib/zlib1g_1.3.dfsg-3.1ubuntu2.3_amd64.deb",
+      "sha256": "376249c8de139568221dbb242318cc8cb8f02299e3a62b7432948e1754fbddf9",
+      "size": 63158,
+      "license_file": "usr/share/doc/zlib1g/copyright"
+    },
+    {
+      "package": "zlib1g-dev",
+      "version": "1:1.3.dfsg-3.1ubuntu2.3",
+      "architecture": "amd64",
+      "filename": "zlib1g-dev_1.3.dfsg-3.1ubuntu2.3_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/z/zlib/zlib1g-dev_1.3.dfsg-3.1ubuntu2.3_amd64.deb",
+      "sha256": "419902a649e1078f24596cdf31ced9c839519828790f59888056fcdcd58e8a28",
+      "size": 894134,
+      "license_file": "usr/share/doc/zlib1g-dev/copyright"
+    },
+    {
+      "package": "libxml2",
+      "version": "2.9.14+dfsg-1.3ubuntu3.10",
+      "architecture": "amd64",
+      "filename": "libxml2_2.9.14+dfsg-1.3ubuntu3.10_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/libx/libxml2/libxml2_2.9.14+dfsg-1.3ubuntu3.10_amd64.deb",
+      "sha256": "c5a065f85c1e6f605741e365e40cad71c3ceb0e85e2791400bd35b8896e12ad1",
+      "size": 763592,
+      "license_file": "usr/share/doc/libxml2/copyright"
+    },
+    {
+      "package": "libxml2-dev",
+      "version": "2.9.14+dfsg-1.3ubuntu3.10",
+      "architecture": "amd64",
+      "filename": "libxml2-dev_2.9.14+dfsg-1.3ubuntu3.10_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/libx/libxml2/libxml2-dev_2.9.14+dfsg-1.3ubuntu3.10_amd64.deb",
+      "sha256": "4cf2446fb0d658e26791f308effc29f8c21befa6460003550f4fa9996d28d3ee",
+      "size": 781344,
+      "license_file": "usr/share/doc/libxml2-dev/copyright"
+    }
+  ]
+}

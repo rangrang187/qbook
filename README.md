@@ -4,25 +4,30 @@ qbook 是基于 C++23 的限价订单簿采集服务项目，按外部行情更�
 V0 提供公共数据契约、配置加载、故障控制和原子指标基础。
 V1 已实现独立的 `Orderbook`：新增、修改、成交、撤单、L2 绝对量更新与同步最优一档快照。
 V2 已完成纯协议、Feed 接收、Book 多品种处理、周期快照和原事件转交，全部 115 项 CTest 验收通过。
-正式服务入口、Parquet、指标发布、UI 和 benchmark 留待后续版本。
+V3 已实现五类 Parquet、Writer 阶段、正式三阶段服务及 SIGINT/SIGTERM 有序停止。
+本轮完整 Debug 154/154、Release 存储与服务 39/39、核心关闭分支 75/75 均通过。
+指标网络发布、UI 和 benchmark 留待 V4/V5。
 
 需求、规格、任务和实现计划均位于 [docs](docs/)。
 V0 已通过 30 项自动化测试。完整验收记录位于本地 `docs/releases/V0.md`；
 `docs/releases/` 按项目所有者要求保留在本地，不上传 GitHub。
 V1 的完整验收记录保存到本地 `docs/releases/V1.md`；V2 的实际命令、输出核对和限制集中记录在本地 `docs/releases/V2.md`。
 V1 历史 Debug 与 ASan/UBSan 结果均为 60/60；V2 开发前已重新运行基线，60/60 通过。
+V3 的实际命令、文件读回与故障结果集中在本地 `docs/releases/V3.md`。
 
 ## 构建和测试
 
 目标平台为 Linux / WSL2、x86-64、小端、8 字节指针。
 需要 C/C++ 编译器、所用 C++23 特性、CMake 3.28 以上和 Ninja。
-固定依赖源码随工程保留，配置和构建无需联网。默认从仓库源码构建 libzmq/cppzmq，不要求系统预装 ZMQ，也不需要 Arrow 或 Node。
+基础依赖源码随工程保留。默认从仓库源码构建 libzmq/cppzmq，不要求系统预装 ZMQ。
+持久化默认关闭；完整 V3 需要下文的 Arrow/Parquet C++ 固定安装，准备好后配置和构建不联网。不需要 Node。
 
 从仓库根目录执行：
 
 ```bash
 cmake -S . -B build/debug -G Ninja \
   -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON -DQBOOK_BUILD_PIPELINE=ON \
+  -DQBOOK_BUILD_PERSISTENCE=OFF \
   -DQBOOK_BUILD_SERVICE=OFF -DQBOOK_BUILD_BENCHMARKS=OFF \
   -DQLIB_BUILD_TESTS=OFF
 cmake --build build/debug --parallel 4
@@ -37,20 +42,44 @@ ctest --test-dir build/debug --output-on-failure --no-tests=error
 `qbook_pipeline_tests` 包含 Feed 9 项、Book 15 项和链路 16 项，共 40 项，前缀为 `pipeline::`，
 使用本机 TCP 临时端口与 XPUB 订阅通知建立就绪条件。
 所有测试程序使用同一份生产库。
+完整 V3 另注册 `qbook_storage_tests` 的 18 项 `storage::` 测试和
+`qbook_service_tests` 的 21 项 `service::` 测试，总计 154 项。
+服务测试驱动只在测试构建中存在，链接同一份服务实现；不替代正式程序。
 
 | 开关 | 实际构建范围 |
 |---|---|
 | 默认 `QBOOK_BUILD_PIPELINE=ON` | `qbook_support`、`qbook_core`、`qbook_protocol`、`qbook_pipeline` 和固定通信依赖。 |
 | `QBOOK_BUILD_PIPELINE=OFF` | 支持库、核心库、纯协议库及其测试；不查找或构建 ZMQ。 |
-| `BUILD_TESTING=OFF` | 按流水线开关构建生产库；不引入 Catch2、测试发布者、收集器或分配替换。 |
+| `QBOOK_BUILD_PERSISTENCE=ON` | 增加 `qbook_storage`、`qbook_writer` 和固定 Arrow/Parquet；这两个库不依赖 ZMQ。默认 OFF。 |
+| `QBOOK_BUILD_SERVICE=ON` | 增加 `qbook_service` 和真实 `qbook`；必须同时显式开启 PIPELINE、PERSISTENCE。默认 OFF。 |
+| `BUILD_TESTING=OFF` | 按能力开关构建生产库和服务；不引入 Catch2、测试辅助、测试驱动或分配替换。 |
 
 V2 最终 Debug 结果为 **115/115 通过，0 失败（8.03 秒）**。
 关闭流水线的独立配置通过 75/75 测试，编译命令不含 ZMQ；关闭测试、启用流水线的配置成功构建四个生产库，未引入 Catch2 或测试辅助。
-本轮网络测试在允许创建本机 socket 的授权环境执行；受限沙箱中的 EPERM 失败及重跑详情保留于本地 V2 记录。
+V2 网络测试在允许创建本机 socket 的授权环境执行；当时受限沙箱中的 EPERM 失败及重跑详情保留于本地 V2 记录。
 V1 的历史 sanitizer 检查覆盖全部 60 项测试，包含分配故障用例并保持泄漏检查开启；V2 不重复这一矩阵。
 `qbook_core` 仅链接 `qlib::qlib`，独立于支持库、日志、网络和文件依赖。
-当前将 `QBOOK_BUILD_SERVICE=ON` 或 `QBOOK_BUILD_BENCHMARKS=ON` 视为配置错误。
-当前没有 `qbook` 服务可执行文件。
+`QBOOK_BUILD_BENCHMARKS=ON` 仍明确拒绝配置。
+
+完整 V3 从仓库根目录构建并验收：
+
+```bash
+python3 scripts/install_arrow_dependencies.py
+cmake -S . -B build/debug -G Ninja \
+  -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON \
+  -DQBOOK_BUILD_PIPELINE=ON -DQBOOK_BUILD_PERSISTENCE=ON \
+  -DQBOOK_BUILD_SERVICE=ON -DQBOOK_BUILD_BENCHMARKS=OFF -DQLIB_BUILD_TESTS=OFF
+cmake --build build/debug --parallel 4
+ctest --test-dir build/debug --show-only
+ctest --test-dir build/debug --output-on-failure --no-tests=error
+```
+
+已完成固定安装时不必重复第一条；安装脚本重提取文件，运行前先停止使用这些库的程序。
+网络测试需要允许本机 TCP/IPC socket，进程测试需要允许 fork/exec 和向自身子进程发送信号。
+V3 验收于 2026-10-23 实际执行：Debug 154/154（25.30 秒），Release 的
+`storage::` / `service::` 39/39（14.94 秒），关闭三个能力开关后的核心 75/75（3.51 秒）。
+关闭测试的完整服务配置可构建，编译源和目标不包含 Catch2 或测试代码；
+服务缺少 PIPELINE 或 PERSISTENCE 的配置均明确失败。这些耗时仅为测试运行记录。
 
 ## 固定依赖
 
@@ -62,6 +91,7 @@ V1 的历史 sanitizer 检查覆盖全部 60 项测试，包含分配故障用�
 | spdlog | 1.17.0，bundled fmt 12.1.0；从同一 nqbook 提交的 `third_party/spdlog` 提取。 | `third_party/spdlog/include/spdlog`，`qbook_logging`，MIT；默认 header-only，使用 bundled fmt。 |
 | libzmq | [官方 v4.3.5 源码](https://codeload.github.com/zeromq/libzmq/tar.gz/refs/tags/v4.3.5)，完整 811 个文件；[内容清单](third_party/libzmq.sha256)。 | `third_party/libzmq`，官方 `libzmq` 动态库目标，MPL-2.0。 |
 | cppzmq | [官方 v4.10.0 源码](https://codeload.github.com/zeromq/cppzmq/tar.gz/refs/tags/v4.10.0)，完整 34 个文件；[内容清单](third_party/cppzmq.sha256)。 | `third_party/cppzmq`，官方 `cppzmq` 接口目标传递链接 `libzmq`，MIT。 |
+| Arrow C++ / Parquet C++ | Apache 官方 Ubuntu noble amd64 包，均为 **26.0.0-1**；[固定包清单](cmake/arrow-dependencies.lock.json) 保存全部 URL、版本与 SHA-256。 | `.deps/arrow-26.0.0/usr`；官方 `Arrow::arrow_shared`、`Parquet::parquet_shared`，Apache-2.0；使用动态链接。 |
 
 nqbook 的已核实远程为 `git@github.com:Zhou-London/nqbook.git`。
 提取使用该提交的 Git 对象，原 nqbook 工作区未改动。
@@ -94,6 +124,19 @@ CMake 通过 `add_subdirectory` 使用原项目目标，不自动下载依赖。
 通信库的测试、文档、性能工具、draft、CURVE、WebSocket 关闭；不引入 libbsd、libsodium、OpenPGM 或 NORM。
 生成的 `libzmq.so.5.2.5` / SONAME 5 属于库 ABI 编号，源码版本仍是 4.3.5。
 
+Arrow/Parquet 安装使用 [固定安装脚本](scripts/install_arrow_dependencies.py)，要求
+Ubuntu 24.04 amd64 / WSL2、Python 3.11+ 和 `dpkg-deb`。脚本校验 37 个固定包，
+仅向 `.deps/arrow-26.0.0` 解包，不修改系统包数据库；缓存齐全时可加 `--offline`。
+来源为 [Apache 官方包仓库](https://packages.apache.org/artifactory/arrow/ubuntu/) 与 Ubuntu 官方仓库。
+各包许可证保留在该前缀的 `usr/share/doc/<package>/copyright`，归档保留在 `packages/`。
+固定安装和归档不提交 Git；锁清单和脚本用于重建。它依赖 Ubuntu 基础运行库，不是完整系统镜像。
+
+[CMake 接入](cmake/ArrowDependency.cmake) 只在持久化开启时查找 **26.0.0 EXACT**。
+真实包目录为前缀下的 `lib/x86_64-linux-gnu/cmake/{Arrow,Parquet}`，实际库为
+`libarrow.so.2600.0.0`、`libparquet.so.2600.0.0`。ZSTD 使用固定 Ubuntu 包
+`1.5.5+dfsg2-2build1.1`，已用真实 C++ 编解码与文件读取验证。
+本地链接写入传递依赖所需的 ELF RPATH，无需手工设置 `LD_LIBRARY_PATH`；移动仓库后重新配置、链接。
+
 ## 配置
 
 [示例 YAML](config/config.yaml) 使用九个平坦键；两个周期单位均为整数毫秒。
@@ -120,12 +163,64 @@ CMake 通过 `add_subdirectory` 使用原项目目标，不自动下载依赖。
 验证不分配队列，不创建输出目录，不连接端点；数值合法也不保证实际资源足够。
 C++ 配置不接受命令行或环境变量覆盖；后续 UI 的构建变量不覆盖 C++ 配置。
 
+## 运行与文件
+
+完整构建后，从需要使用的工作目录启动；程序读取该目录的 `config/config.yaml`：
+
+```bash
+./build/debug/qbook
+```
+
+前台运行按 Ctrl+C 正常停止。也可在同一 Bash 会话中明确保存进程 PID：
+
+```bash
+./build/debug/qbook &
+qbook_pid=$!
+```
+
+确认日志出现 `service_control_ready` 后，在同一会话请求停止并等待退出：
+
+```bash
+kill -TERM "$qbook_pid"
+wait "$qbook_pid"
+```
+
+正常退出码为 0；配置、初始化、运行或关闭失败均非零。启动按 Writer → Book → Feed；
+正常停止按 Feed stop/join → Book 排空/join → Writer 排空、Close、join。
+`writer_opened` 日志公布本次独占 `data_out/run-<标识>/` 路径，重复运行不会覆盖旧文件。
+`feed_connected` 表示本地接收资源初始化，不能证明发布端在线或行情已流入。
+V3 不启动指标发布线程，配置中的指标端点和周期保留给 V4。
+
+每次固定创建以下五文件；没有记录的类型仍有可读 schema。字段全部非空：
+
+| 文件 | 列顺序 |
+|---|---|
+| `orders.parquet` | seq、order_id、price、qty、new_qty、event_ns、recv_ns、instrument_id、side、type、action |
+| `trades.parquet` | seq、buy_order_id、sell_order_id、price、qty、event_ns、recv_ns、instrument_id、side |
+| `cancels.parquet` | seq、order_id、qty、event_ns、recv_ns、instrument_id、side |
+| `levels.parquet` | seq、price、qty、event_ns、recv_ns、instrument_id、side |
+| `books.parquet` | event_ns、recv_ns、instrument_id、bid_price、bid_qty、ask_price、ask_qty |
+
+instrument_id 为 uint32；side/type/action 为 uint8；其他标量为 int64。
+快照四数组为 `fixed_size_list<int64>[1]`，元素也非空；保存 Arrow schema 和 ZSTD 压缩。
+schema 元数据 `qbook.format_version=1`，另含 `qbook.price_scale=10000000000`、
+`qbook.qty_scale=100000000`、`qbook.time_unit=unix_epoch_ns`、`qbook.snapshot_depth=1`，
+以及 side、order_type、order_action 的枚举映射。原事件保持整数和删除数量，不保存本机链接指针。
+
+五类各自按 `batch_rows` 写批次；物理 row group 数不等于应用批次数的公开契约。
+只有成功入 FeedQueue 才属接纳，Add 成功只代表追加；正常 Close 成功并读回才能证明本次输出完整。
+故障目录可能含部分文件，应按失败采集处理；不重试结果不明的批次，不承诺断电安全、强杀恢复或跨文件全序。
+网络和文件访问权限由受控运行环境管理，本版未提供公网认证或多租户隔离。
+
 ## 公共接口与并发约定
 
 - [PipelineTypes.h](include/PipelineTypes.h) 直接复用 qlib 事件和队列，并冻结全部协议字段类型、大小和偏移。variant、本地指针及原子对象不能直接作为通用网络格式。
 - [Protocol.h](include/Protocol.h) 提供 `DecodeFrame`、`ValidateEvent` 和明确的拒绝结果；按空帧、标签、长度、模式、字段顺序校验，独立样本见 [协议 fixtures](tests/fixtures/protocol/README.md)。
 - [FeedThread.h](include/Threads/FeedThread.h) 在 `Run` 线程持有 SUB/context；区分收到消息、有效解码和成功入队，只有成功入队表示接纳，multipart 整体拒绝。
 - [BookThread.h](include/Threads/BookThread.h) 独占多品种订单簿；应用或业务忽略后均转交原事件，按单调时钟输出已知品种快照。
+- [ParquetWriter.h](include/ParquetWriter.h) 同步保存五类记录；调用者必须显式 `Close()`，失败后不可追加或重试批次，析构只释放资源。
+- [WriterThread.h](include/Threads/WriterThread.h) 在所属线程取得独占目录、消费记录并关闭文件；成功 Add 后才更新 Writer 指标。
+- [Service.cpp](src/Service.cpp) 实现 `RunService` 的线程装配、信号与停止协调；`Runtime.cpp` 保持轻量故障控制，不依赖 Arrow/ZMQ。
 - [Config.h](include/Config.h) 提供默认参数、`LoadConfig` 和 `ValidateConfig`，公共头不传播 YAML 类型。
 - [Orderbook.h](include/Orderbook.h) 提供 `OnOrder`、`OnTrade`、`OnCancel`、`OnLevel`、`OnSnapshot`、`size` 和 `MemoryBytes`，构造时绑定品种和 `BookMode::Mbo` 或 `BookMode::L2`。
 - [Runtime.h](include/Runtime.h) 的 `RunControl` 保留第一个原子交换获胜者的故障。运行线程只读 `Failed()`；所有潜在报告者 join 后才能读 `Error()` 和 `Stage()`。

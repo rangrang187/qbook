@@ -4,11 +4,11 @@ Guidance for Codex when working in this repository.
 
 ## What this is
 
-`qbook` 是参考 `nqbook` 重新开发的 C++ 限价订单簿服务，用于接收行情事件、按交易品种维护订单簿、生成快照并记录数据；它根据外部成交事件更新订单，不主动撮合买卖订单。初始方案沿用参考项目的 C++23、CMake、ZeroMQ、Arrow/Parquet，并复用已有的 `qlib` 基础库，项目代码使用命名空间 `qbook`。目标运行方式是常驻进程：行情接收、订单簿维护、数据写入三个阶段通过 SPSC 队列传递数据，独立监控线程采集指标；可视化界面在对应版本再接入。项目已完成 V0 支持库和 V1 订单簿核心；V1 历史 Debug 与 ASan/UBSan 均为 60/60 通过。V2 已完成纯协议、Feed/Book 阶段和测试消费者，Debug 验收为 115/115 通过。持久化、正式服务入口和监控发布留待后续版本；具体范围以需求和规格文档为准，实际构建说明见 [README.md](README.md)。
+`qbook` 是参考 `nqbook` 重新开发的 C++ 限价订单簿服务，用于接收行情事件、按交易品种维护订单簿、生成快照并记录数据；它根据外部成交事件更新订单，不主动撮合买卖订单。项目使用 C++23、CMake、ZeroMQ、Arrow/Parquet 和已有的 `qlib` 基础库，项目代码使用命名空间 `qbook`。常驻进程中的行情接收、订单簿维护、数据写入三个阶段通过 SPSC 队列传递数据。V0 支持库和 V1 订单簿核心已完成；V1 历史 Debug 与 ASan/UBSan 均为 60/60 通过。V2 已完成纯协议、Feed/Book 阶段和测试消费者，Debug 验收为 115/115 通过。V3 已完成五类 Parquet、Writer 阶段、正式入口及信号停止，完整 Debug 154/154、核心分支 75/75、Release 文件与服务 39/39 通过。独立监控发布和 UI 留待 V4，性能实验留待 V5；实际构建说明见 [README.md](README.md)。
 
 ## Layout
 
-以下列出当前文件与后续规划位置。Orderbook、Protocol 和 Feed/Book 已实现；持久化、main、指标发布、UI 和 benchmark 仍是规划。按当前版本需要创建文件，不要一次性生成所有目录、空类或占位实现。已有文件采用不同路径时，先核对实际结构，再同步本文档。
+以下列出当前文件与后续规划位置。Orderbook、Protocol、Feed/Book、持久化和正式服务已实现；指标发布、UI 和 benchmark 仍是规划。按当前版本需要创建文件，不要一次性生成所有目录、空类或占位实现。已有文件采用不同路径时，先核对实际结构，再同步本文档。
 
 ```text
 AGENTS.md                         Codex 的仓库工作规则
@@ -24,8 +24,9 @@ src/Protocol.cpp                  固定布局的逐标量读取
 include/Config.h                  配置结构与加载接口
 src/Config.cpp                    配置读取和启动时校验
 src/ConfigChecks.h                私有时间算术检查，供实现及边界测试使用
-include/Runtime.h                 首个故障记录与并发访问契约
+include/Runtime.h                 RunControl 与 RunService 声明
 src/Runtime.cpp                   RunControl 实现
+src/Service.cpp                   三阶段组装、信号处理和停止协调
 config/config.yaml                运行参数，如端点、容量和周期
 include/Orderbook.h               单个交易品种的订单簿接口与契约
 src/Orderbook.cpp                 新增、修改、成交、撤单、L2 更新与快照逻辑
@@ -39,13 +40,18 @@ include/Threads/WriterThread.h     数据写入阶段的声明
 src/Threads/WriterThread.cpp       消费记录并调用 ParquetWriter
 include/Threads/MetricsThread.h    V0 指标单元与集合；发布阶段留待 V4
 src/Threads/MetricsThread.cpp      V0 原子操作与值快照；发布留待 V4
-src/main.cpp                      配置加载、对象组装、线程启动与有序停止
+src/main.cpp                      配置加载、日志初始化及运行入口
+src/detail/                       排他目录/文件创建和服务、Writer 私有协作声明
 tests/                            订单簿及其他组件的单元测试、集成测试
 tests/support/OrderbookInspector.h 测试只读观察器，检查全部存储、索引、价位和链接
 tests/support/AllocationFailure.*  专用测试程序的普通与对齐分配替换
 tests/support/FeedPublisher.*      有限 XPUB 测试发布者，以订阅通知确认就绪
 tests/support/RecordCollector.*    有上限的测试结果收集器，join 后读取结果
 tests/support/PipelineTestSupport.h 测试线程异常边界、期限及清理
+tests/support/ParquetReadback.*    五类文件的独立 schema、元数据和逐行核对
+tests/support/FailingOutputStream.* 真实输出流的受控错误和资源线程轨迹
+tests/support/ProcessHarness.*     独立子进程、信号、期限和输出管道
+tests/service_test_driver.cpp     复用真实服务的私有测试驱动
 tests/fixtures/protocol/           独立 golden bytes 与字段说明
 benchmarks/                       独立性能实验；按版本需要添加
 third_party/qlib/                 用户本地 qlib 的固定源码快照
@@ -53,6 +59,10 @@ third_party/qlib.sha256            qlib 相对路径与 SHA-256 内容清单
 third_party/libzmq/               固定 libzmq 4.3.5 源码与许可证
 third_party/cppzmq/               固定 cppzmq 4.10.0 源码与许可证
 third_party/                      其余固定依赖及各自 SHA-256 清单
+cmake/ArrowDependency.cmake       官方 Arrow/Parquet 目标及本地运行库接入
+cmake/arrow-dependencies.lock.json 固定 Ubuntu 包来源、版本、哈希与许可证路径
+scripts/install_arrow_dependencies.py 校验并提取固定包，不修改系统包数据库
+.deps/arrow-26.0.0/               本地固定安装、归档和许可证，不提交
 ui/                              监控界面；实现该功能时再建立
 docs/releases/                   本地验收记录，保留但不提交或上传 GitHub
 build/                           CMake 生成的构建产物，不手工维护、不提交
@@ -67,11 +77,16 @@ data_out/                        运行生成的数据文件，不提交
 
 各库在 Linux / WSL2、x86-64、小端环境构建。使用 C/C++ 编译器、C++23、CMake 3.28 以上及 Ninja。
 当前建立 `qbook_support`、`qbook_core`、`qbook_protocol` 和默认启用的 `qbook_pipeline`。
+`QBOOK_BUILD_PERSISTENCE=ON` 增加 `qbook_storage` 和 `qbook_writer`，两者不依赖 ZMQ；默认 OFF。
+`QBOOK_BUILD_SERVICE=ON` 增加 `qbook_service` 和正式 `qbook`，要求同时显式启用 PIPELINE 与 PERSISTENCE；默认 OFF。
 `qbook_core` 只包含真实的 `src/Orderbook.cpp`，仅公开链接 `qlib::qlib`，不依赖支持库或日志。
 `qbook_protocol` 仅依赖公共类型；`QBOOK_BUILD_PIPELINE=OFF` 不查找或构建 ZMQ，保留纯协议测试。
 `qbook_tests` 包含 V0/V1 与协议回归共 69 项；`qbook_allocation_tests` 独立链接分配替换，共 6 项。
 `qbook_pipeline_tests` 包含 Feed、Book 和真实网络/受控队列场景共 40 项，使用本机 TCP 临时端口；无发布者场景使用独占 IPC 路径。
 V2 已验证流水线关闭分支 75/75 通过，以及关闭测试时四个生产库可构建；网络测试需要允许本机 socket 的环境。
+完整 V3 注册 `storage::` 18 项和 `service::` 21 项，加上前置 115 项共 154 项。
+本轮完整 Debug 154/154、核心分支 75/75 和 Release 文件/服务 39/39 均已实际执行通过。
+关闭测试的完整生产构建不含测试源码或目标；SERVICE 缺少任一前置开关时均明确拒绝配置。
 实际环境、依赖版本和验收结果以 [README.md](README.md) 与本地 `docs/releases/` 对应版本记录为准。`docs/releases/` 按项目所有者要求不提交或上传 GitHub。
 
 qlib 使用用户本地源码的固定副本，位于 `third_party/qlib/`；逐文件内容记录在
@@ -79,12 +94,16 @@ qlib 使用用户本地源码的固定副本，位于 `third_party/qlib/`；逐�
 构建通过真实 `qlib::qlib` 目标接入，关闭 `QLIB_BUILD_TESTS`。
 Catch2 v3、fkYAML、spdlog、libzmq 4.3.5 与 cppzmq 4.10.0 同样保留固定源码及许可证，配置时不自动下载。
 流水线通过官方 `cppzmq` 接口目标链接官方 `libzmq` 动态库；归档哈希和内容清单见 README。
+V3 使用 Apache 官方 Ubuntu 24.04 amd64 Arrow/Parquet 26.0.0-1 包，安装到 `.deps/arrow-26.0.0/usr`。
+固定包和运行依赖由锁文件及安装脚本管理，链接真实 `Arrow::arrow_shared`、`Parquet::parquet_shared`，配置时不下载。
+本地 RPATH 含仓库绝对路径；移动目录后重新配置和链接。固定安装依赖基础系统运行库，不等于完整系统镜像。
 
 从 **qbook 仓库根目录** 执行，常规构建持续复用 `build/debug`：
 
 ```bash
 cmake -S . -B build/debug -G Ninja \
   -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON -DQBOOK_BUILD_PIPELINE=ON \
+  -DQBOOK_BUILD_PERSISTENCE=OFF \
   -DQBOOK_BUILD_SERVICE=OFF -DQBOOK_BUILD_BENCHMARKS=OFF \
   -DQLIB_BUILD_TESTS=OFF
 cmake --build build/debug --parallel 4
@@ -93,11 +112,14 @@ ctest --test-dir build/debug --output-on-failure --no-tests=error
 ```
 
 `--show-only` 只确认注册数量；必须实际执行测试才可写通过。
-`BUILD_TESTING=OFF` 按流水线开关构建生产库，不要求 Catch2 或测试辅助。当前对服务或 benchmark 开关为 ON 明确拒绝配置。
-当前没有 `qbook` 服务可执行文件；V2 测试链路不代表已写入 Parquet 或完成正式服务启停。
+`BUILD_TESTING=OFF` 按能力开关构建生产库和服务，不要求 Catch2 或测试辅助。benchmark 开关为 ON 仍明确拒绝配置。
+完整 V3 先执行 `python3 scripts/install_arrow_dependencies.py`，再将上面的 PERSISTENCE 和 SERVICE 同时设为 ON。
+已缓存全部固定包时，安装脚本支持 `--offline`。安装会重新提取同版本文件，应在使用这些库的程序停止后执行。
+正式服务从当前工作目录读取 `config/config.yaml`，在仓库根执行 `./build/debug/qbook`；SIGINT/SIGTERM 触发有序停止。
+五类输出在新建的独占运行目录中保存；成功 Add 的指标不等于已关闭文件或断电安全。
 
 新增版本时只接入当前功能所需的依赖和实际源码，不创建空类或伪服务目标。
-完整服务、发布构建、信号停止、文件验收及 UI 命令随对应版本落实后补入 README。
+完整服务、信号停止和文件验收命令见 README；发布部署、UI 和性能命令随对应任务落实后补充。
 构建产物按当前版本计划区分原有目录与本次新建目录后清理，固定依赖源码保留。
 
 ## Conventions
@@ -126,7 +148,7 @@ ctest --test-dir build/debug --output-on-failure --no-tests=error
 
 - **并发所有权。** 订单簿只由 Book 阶段访问；相邻阶段通过各自的一条 SPSC 队列交接事件，保持单生产者、单消费者。监控只读取明确共享的原子指标，不直接遍历订单簿或队列内部。新增跨线程访问时先明确所有权、生命周期和同步关系。
 
-- **队列与停止。** 明确队列满时的等待策略和停止行为，不静默丢弃已承诺处理的事件。正常停止按 Feed、Book、下游消费者的顺序停止并等待完成，使下游有机会排空输入。V2 下游为测试 Collector，V3 才接入 Writer；监控阶段接入后最后停止。保证范围应区分“已从网络接收”“已成功入队”和“已写入文件”；SPSC 背压不能直接证明 ZMQ PUB/SUB 端到端无丢失。
+- **队列与停止。** 明确队列满时的等待策略和停止行为，不静默丢弃已承诺处理的事件。正常停止按 Feed、Book、Writer 的顺序停止并等待完成，使下游有机会排空输入。V2 独立测试链路仍使用 Collector；监控阶段接入后最后停止。Book 和 Writer 先观察停止，再确认输入为空；主线程只在上游 join 后停止下游。保证范围应区分“已从网络接收”“已成功入队”和“已写入文件”；SPSC 背压不能直接证明 ZMQ PUB/SUB 端到端无丢失。
 
 - **配置。** C++ 运行参数集中放入 `config/config.yaml`，由配置结构承载并经构造函数传给组件，不添加命令行或环境变量覆盖机制。UI 的构建参数由后续 UI 版本管理，不覆盖 C++ 配置。对容量、批量大小、采样周期等参数在启动时做必要校验；缺失项是否采用默认值以及非法配置如何报错，按规格统一处理。
 

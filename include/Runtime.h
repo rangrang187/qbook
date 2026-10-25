@@ -5,6 +5,11 @@
 
 namespace qbook {
 
+struct Config;
+
+// 主线程独占运行一次服务；配置须已验证，所有阶段结束后返回正常 0 或失败非零。
+int RunService(const Config& config);
+
 // 保存一次运行的首个致命故障；对象须存活到所有借用线程结束。
 class RunControl {
 public:

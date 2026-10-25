@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.28)
-project(qbook VERSION 0.2.0 LANGUAGES CXX)
+project(qbook VERSION 0.3.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -8,10 +8,11 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include(CTest)
 option(QBOOK_BUILD_PIPELINE "构建 Feed 与 Book 流水线" ON)
+option(QBOOK_BUILD_PERSISTENCE "构建 Arrow/Parquet 存储与 Writer 阶段" OFF)
 option(QBOOK_BUILD_SERVICE "构建完整 qbook 服务" OFF)
 option(QBOOK_BUILD_BENCHMARKS "构建性能实验" OFF)
-if(QBOOK_BUILD_SERVICE)
-  message(FATAL_ERROR "当前版本尚未实现 qbook 服务；请设置 QBOOK_BUILD_SERVICE=OFF")
+if(QBOOK_BUILD_SERVICE AND (NOT QBOOK_BUILD_PIPELINE OR NOT QBOOK_BUILD_PERSISTENCE))
+  message(FATAL_ERROR "QBOOK_BUILD_SERVICE=ON 要求显式同时开启 QBOOK_BUILD_PIPELINE 和 QBOOK_BUILD_PERSISTENCE")
 endif()
 if(QBOOK_BUILD_BENCHMARKS)
   message(FATAL_ERROR "当前版本尚未实现 benchmark；请设置 QBOOK_BUILD_BENCHMARKS=OFF")
@@ -97,6 +98,31 @@ if(QBOOK_BUILD_PIPELINE)
   target_compile_options(qbook_pipeline PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
+if(QBOOK_BUILD_PERSISTENCE)
+  include(cmake/ArrowDependency.cmake)
+  add_library(qbook_storage STATIC src/ParquetWriter.cpp src/detail/OutputStreams.cpp)
+  target_include_directories(qbook_storage PUBLIC include PRIVATE src)
+  target_link_libraries(qbook_storage PUBLIC qlib::qlib
+    PRIVATE qbook_arrow_dependencies qbook_logging)
+  target_compile_options(qbook_storage PRIVATE -Wall -Wextra -Wpedantic)
+
+  add_library(qbook_writer STATIC src/Threads/WriterThread.cpp src/detail/RunDirectory.cpp)
+  target_include_directories(qbook_writer PUBLIC include PRIVATE src)
+  target_link_libraries(qbook_writer PUBLIC qbook_support qbook_storage Threads::Threads
+    PRIVATE qbook_logging)
+  target_compile_options(qbook_writer PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+if(QBOOK_BUILD_SERVICE)
+  add_library(qbook_service STATIC src/Service.cpp)
+  target_include_directories(qbook_service PUBLIC include PRIVATE src)
+  target_link_libraries(qbook_service PUBLIC qbook_pipeline qbook_writer PRIVATE qbook_logging)
+  target_compile_options(qbook_service PRIVATE -Wall -Wextra -Wpedantic)
+  add_executable(qbook src/main.cpp)
+  target_link_libraries(qbook PRIVATE qbook_service qbook_logging)
+  target_compile_options(qbook PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
 if(BUILD_TESTING)
   # Catch2 v3.8.1，提交 2b60af89e23d28eefc081bc930831ee9d45ea58b。
   if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/Catch2/extras/Catch.cmake")
@@ -137,5 +163,37 @@ if(BUILD_TESTING)
     target_link_libraries(qbook_pipeline_tests PRIVATE qbook_pipeline qbook_logging Catch2::Catch2WithMain)
     target_compile_options(qbook_pipeline_tests PRIVATE -Wall -Wextra -Wpedantic)
     catch_discover_tests(qbook_pipeline_tests TEST_PREFIX "pipeline::" PROPERTIES TIMEOUT 30)
+  endif()
+
+  if(QBOOK_BUILD_PERSISTENCE)
+    # 不含全局分配替换；文件读取和故障流仅供这两个验收程序使用。
+    add_library(qbook_storage_test_support STATIC tests/support/ParquetReadback.cpp
+      tests/support/FailingOutputStream.cpp)
+    target_include_directories(qbook_storage_test_support PUBLIC tests src)
+    target_link_libraries(qbook_storage_test_support PUBLIC qbook_storage qbook_support
+      qbook_arrow_dependencies)
+    target_compile_options(qbook_storage_test_support PRIVATE -Wall -Wextra -Wpedantic)
+    add_executable(qbook_storage_tests tests/parquet_writer_tests.cpp tests/writer_thread_tests.cpp)
+    target_link_libraries(qbook_storage_tests PRIVATE qbook_writer qbook_storage_test_support
+      Catch2::Catch2WithMain)
+    target_compile_options(qbook_storage_tests PRIVATE -Wall -Wextra -Wpedantic)
+    catch_discover_tests(qbook_storage_tests TEST_PREFIX "storage::" PROPERTIES TIMEOUT 45)
+  endif()
+
+  if(QBOOK_BUILD_SERVICE)
+    add_executable(qbook_service_test_driver tests/service_test_driver.cpp)
+    target_link_libraries(qbook_service_test_driver PRIVATE qbook_service
+      qbook_storage_test_support qbook_logging)
+    target_compile_options(qbook_service_test_driver PRIVATE -Wall -Wextra -Wpedantic)
+    add_executable(qbook_service_tests tests/service_lifecycle_tests.cpp
+      tests/service_integration_tests.cpp tests/support/ProcessHarness.cpp tests/support/FeedPublisher.cpp)
+    target_link_libraries(qbook_service_tests PRIVATE qbook_service qbook_storage_test_support
+      qbook_logging Catch2::Catch2WithMain)
+    target_compile_definitions(qbook_service_tests PRIVATE
+      QBOOK_EXECUTABLE="$<TARGET_FILE:qbook>"
+      QBOOK_SERVICE_TEST_DRIVER="$<TARGET_FILE:qbook_service_test_driver>")
+    target_compile_options(qbook_service_tests PRIVATE -Wall -Wextra -Wpedantic)
+    add_dependencies(qbook_service_tests qbook qbook_service_test_driver)
+    catch_discover_tests(qbook_service_tests TEST_PREFIX "service::" PROPERTIES TIMEOUT 60)
   endif()
 endif()

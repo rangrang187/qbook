@@ -112,7 +112,7 @@ void FeedThread::Run(Metrics& metrics, std::stop_token stop, const RunControl& c
   zmq::context_t context(1);
   zmq::socket_t sub(context, zmq::socket_type::sub);
   Connect(sub);
-  spdlog::info("Feed 接收资源已初始化：{}", endpoint_);
+  spdlog::info("feed_connected Feed 接收资源已初始化：{}", endpoint_);
   zmq::message_t message;
   while (!stop.stop_requested() && !control.Failed()) {
     if (!Receive(sub, message)) continue;

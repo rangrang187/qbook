@@ -1,10 +1,10 @@
 # qbook Spec（技术规格文档）
 
-版本：0.4｜日期：2026-10-22｜状态：V0～V2 已实现并验收；后续版本为设计基线
+版本：0.5｜日期：2026-10-23｜状态：V0～V3 已实现并通过对应测试；V4/V5 为设计基线
 
-本文件依据 [requirement.md](requirement.md) 解释 qbook 的设计与接口契约，参考材料为 nqbook v0.5.0 与 qlib(V4) 源码。V0 已交付配置、共享类型与故障/指标基础；V1 已完成订单簿核心、同步快照及对应验证。V2 已建立协议、Feed/Book 阶段和测试链路；持久化、正式服务入口、指标发布与 UI 等章节仍描述后续目标。具体编码步骤见 Implementation Plan，版本和任务顺序见 Sprint Backlog，仓库工作规则见 [AGENTS.md](../AGENTS.md)。
+本文件依据 [requirement.md](requirement.md) 解释 qbook 的设计与接口契约，参考材料为 nqbook v0.5.0 与 qlib(V4) 源码。V0 已交付配置、共享类型与故障/指标基础；V1 已完成订单簿核心、同步快照及对应验证。V2 已建立协议、Feed/Book 阶段和测试链路；V3 已建立五类持久化、Writer、正式入口和信号停止。指标发布与 UI 留待 V4，性能实验留待 V5。具体实施与证据见 Implementation Plan 和本地版本记录，任务顺序见 Sprint Backlog，仓库工作规则见 [AGENTS.md](../AGENTS.md)。
 
-本文已核对 qlib 的实际接口，不把它机械视为 nlib 的改名。价格/数量倍率、队列容量语义与 CMake 目标已有源码依据；未确定的真实行情源和性能门槛在第 7 章保留；已接入依赖以 README 的固定来源和内容清单为准。代码块用于说明规划接口或协作方式，除明确列出的结构和断言外，不构成可直接编译的完整工程。
+本文已核对 qlib 的实际接口，不把它机械视为 nlib 的改名。价格/数量倍率、队列容量语义与 CMake 目标已有源码依据；未确定的真实行情源和性能门槛在第 7 章保留；已接入依赖以 README 的固定来源和内容清单为准。代码块用于说明接口或协作方式，完整声明与可编译实现以仓库代码为准。
 
 ## 1. 项目概述
 
@@ -60,6 +60,8 @@ flowchart TD
 
 三个业务阶段各做一件事：Feed 解释外部消息，Book 更新业务并产生记录，Writer 将记录写入文件。独立监控线程只读指标，不读订单簿容器或队列内部。SSE 是服务端持续向浏览器推送文本事件的连接；浏览器不直接使用 ZMQ。
 
+V3 实际启动 Feed、Book、Writer 三个工作线程；图中的监控发布、Next.js 与浏览器部分为 V4 设计。V3 保留并更新 16 项原子指标，尚未发布到网络。
+
 ### 2.2 技术模块图
 
 ```mermaid
@@ -81,14 +83,14 @@ flowchart TD
 
 | 技术模块 | 主要组件与文件 | 对应需求 | 边界 |
 |---|---|---|---|
-| T-01 配置与运行控制 | `Config.h/.cpp`、`Runtime.h/.cpp`、`main.cpp` | FR-01、FR-02 | 读参数、组装、管理停止和故障；不实现订单更新。 |
+| T-01 配置与运行控制 | `Config.h/.cpp`、`Runtime.h/.cpp`、`Service.cpp`、`main.cpp` | FR-01、FR-02 | 读参数、组装、管理停止和故障；不实现订单更新。 |
 | T-02 行情接入 | `Protocol.h/.cpp`、`Threads/FeedThread.h/.cpp` | FR-03、FR-04 | 校验外部字段、解码、投递；不访问已有订单。 |
 | T-03 订单簿与事件处理 | `Orderbook.h/.cpp`、`Threads/BookThread.h/.cpp` | FR-05～FR-10 | 管理业务状态、分发事件、生成快照；不调用 Arrow。 |
-| T-04 持久化 | `ParquetWriter.h/.cpp`、`Threads/WriterThread.h/.cpp` | FR-11、FR-12 | 保存不可变记录；不重新计算订单簿。 |
+| T-04 持久化 | `ParquetWriter.h/.cpp`、`Threads/WriterThread.h/.cpp`、`detail/OutputStreams.*`、`detail/RunDirectory.*` | FR-11、FR-12 | 保存不可变记录并取得独占路径；不重新计算订单簿。 |
 | T-05 指标监控 | `Threads/MetricsThread.h/.cpp` 中的 `Metric/Metrics/MetricsThread` | FR-13～FR-15 | 更新/采样统计，不将普通 `qlib::metrics` 当原子共享对象。 |
 | T-06 监控界面 | `ui/lib/metrics.ts`、`ui/lib/rate.ts`、`ui/app/api/metrics/route.ts`、`ui/app/page.tsx` | FR-16、FR-17 | 消费指标、计算显示值；不向核心发送修改请求。 |
 
-文件组织中，公共声明位于 `include/`，实现位于 `src/`；`include/PipelineTypes.h` 定义 `BookMode` 和两条队列别名，避免 Writer 为获得类型而包含完整 BookThread。测试、性能实验、输出数据分别位于 `tests/`、`benchmarks/`、`data_out/`。这些是规划位置，实际创建随任务推进。
+公共声明位于 `include/`，实现位于 `src/`；`include/PipelineTypes.h` 定义 `BookMode` 和两条队列别名，避免 Writer 为获得类型而包含完整 BookThread。`Runtime.cpp` 只实现轻量 RunControl，`Service.cpp` 装配服务，`main.cpp` 加载配置并调用 RunService。私有协作声明位于 `src/detail/`，读取器和故障夹具只进入 `tests/`。性能实验的 `benchmarks/` 和 UI 路径随对应版本创建；运行输出默认位于 `data_out/`。
 
 ### 2.4 模块之间的依赖、协作关系及设计理由
 
@@ -100,7 +102,7 @@ using RecordQueue = qlib::single_queue<qlib::record>;
 }
 ```
 
-入口创建两条固定容量队列和四个阶段对象，保证这些对象活到所有线程 `join()` 之后。Feed 是 FeedQueue 唯一生产者，Book 是其唯一消费者；Book 同时是 RecordQueue 唯一生产者，Writer 是唯一消费者。各阶段借用队列，不负责销毁它。
+V3 入口创建两条固定容量队列和三个业务阶段对象，保证这些对象活到所有线程 `join()` 之后。Feed 是 FeedQueue 唯一生产者，Book 是其唯一消费者；Book 同时是 RecordQueue 唯一生产者，Writer 是唯一消费者。各阶段借用队列，不负责销毁它。V4 再加入独立的指标发布阶段。
 
 这种划分让网络和文件 I/O 不直接占住订单簿的操作线程，同时避免多个线程争抢同一订单簿的锁。代价是需要两个额外队列、记录副本和阶段间等待；文件写入跟不上时，背压会逐级传到接收阶段，仍不能保证外部 ZMQ 发布者的数据无丢失。
 
@@ -110,7 +112,7 @@ using RecordQueue = qlib::single_queue<qlib::record>;
 
 **快照流：** Book 使用 `steady_clock` 判断周期，为已知品种生成值拷贝。快照保存最近处理事件的时间；输出生成时间不能冒充该字段。忙碌后只生成当下快照并重新安排下一次到期，不在一个循环里无限补发历史到期次数。
 
-**停止与故障流：** 普通停止按 Feed → Book → Writer 的顺序请求停止并逐个等待完成，最后停止 Metrics。Book、Writer 的普通停止先排空输入；任意阶段出现致命失败时，统一故障标志中止等待，所有线程停止，不再承诺完整排空。这样既能正常保存尾部数据，也能避免 Writer 已退出而 Book 永远等待满队列。
+**停止与故障流：** 普通停止按 Feed → Book → Writer 的顺序请求停止并逐个等待完成；V4 接入 Metrics 后最后停止该阶段。Book、Writer 先观察停止，再确认输入为空并结束；任意阶段出现致命失败时，统一故障标志中止等待，所有线程停止，不再承诺完整排空。
 
 ### 2.6 技术模块的划分方案与理由
 
@@ -220,7 +222,7 @@ classDiagram
 | 当前挂单 | 对应 Orderbook 的 hive。 | 数量与链接可变；被移除前解除索引和价位引用，地址随后不可再用。 |
 | 快照 | Book 根据一致状态生成的值。 | 经 RecordQueue 交给 Writer，独立于后续订单状态。 |
 | 写入批次 | ParquetWriter 的各 Sink。 | 达到批量或显式 Close 时写出；错误后不自动重试同一批次，防止不明状态下重复写入。 |
-| 共享指标 | main 创建的 Metrics。 | 每项单写者，MetricsThread 仅读；所有线程结束后释放。 |
+| 共享指标 | 主线程在 RunService 创建的 Metrics。 | 每项单写者，后续 MetricsThread 仅读；所有线程结束后释放。 |
 | 输出文件 | 每次运行排他创建的目录。 | 正常关闭后供分析；不自动恢复为订单簿，不自动按日期删除。 |
 
 ### 3.8 共享数据组织方案的选择与取舍
@@ -356,7 +358,7 @@ public:
 
 #### 4.1.3 模块整体协作
 
-**1. 类之间的调用与协作流程。** main 加载 Config，创建 Metrics、RunControl、两队列和阶段对象，通常先启动 Writer/Book/Metrics，再启动 Feed。ZMQ 资源由所属工作线程建立；main 的“线程已启动”日志不能声称所有端点已就绪或行情已流入，各阶段在初始化完成后单独报告。主线程观察用户停止标志和 Failed 状态。
+**1. 类之间的调用与协作流程。** main 加载 Config 并调用 RunService；Service.cpp 创建 Metrics、RunControl、两队列及阶段对象，按 Writer、Book、Feed 启动。ZMQ 和文件资源由所属工作线程建立。`feed_connected` 表示连接配置完成，`writer_opened` 表示五个文件已打开，`service_control_ready` 表示主线程停止协调已启用；这些日志不表示网络订阅或行情接纳完成。主线程观察用户停止标志和 Failed 状态。
 
 **2. 模块完整使用示例。** 以下示例只展示运行控制接口，具体队列和阶段组装在 RunService 内完成：
 
@@ -373,6 +375,10 @@ int main() {
 ```
 
 正常停止时，主线程先 request_stop Feed 并 join，再对 Book、Writer 依次进行相同操作，最后停止 Metrics。若此时任何阶段 Failed，工作循环的队列等待必须能退出；主线程切换为对全部已启动线程请求停止并 join，报告失败而不是宣布正常保存。线程创建中途失败也要停止并等待已经创建的线程，不依赖对象析构顺序碰巧解决。
+
+V3 没有创建 Metrics 发布线程。Service.cpp 在第一条线程启动前安装清理守卫；阶段包装器捕获异常，记录首错并发布完成位。主线程每 10ms 检查完成位与 Failed，全部 join 后才读取 Stage/Error。私有测试 hooks 只用于启动边界、成功追加观察和协调时机，正式 RunService 始终传入空 hooks。
+
+Linux 信号守卫在启动前屏蔽 SIGINT/SIGTERM，工作线程及其创建的后台线程继承屏蔽。三阶段启动后仅协调主线程解除屏蔽，处理器只设置本线程的 `volatile sig_atomic_t` 标志。全部阶段结束后恢复原 mask 和处理器；显式恢复错误使运行返回非零。重复停止请求不改变有序排空规则，系统调用或文件 I/O 不提供硬实时停止保证。
 
 **3. 模块级设计约束、不变量与风险。** 信号处理函数只设置经过目标平台验证的停止标志，不调用日志、分配或 join；主线程完成实际停止。队列销毁必须晚于所有使用者结束。普通停止不等于全部线程同时 request_stop；致命失败也不能继续等待绝不会到来的队列空间。对不可中断的系统调用没有硬性停止时限承诺，外部看门狗或强杀不在正常排空范围。
 
@@ -763,7 +769,7 @@ Book 的周期与到期点检查复用私有 `src/ConfigChecks.h`。Apply 时差
 
 **10. 类的技术选型、替代方案与设计取舍。** 单 Book 线程让每个品种的事件顺序、快照一致性与容器所有权直接成立，代价是全部品种共享一个处理能力上限。按品种分片到多个 Book 线程可以提高并行度，但会引入分片规则、多条队列、指标汇总和输出顺序问题；本版没有性能证据要求这一步，因此不提前实现。休眠式等待降低空闲占用，但会增加排队和唤醒延迟；当前只把固定短等待作为可测量基线，不宣称满足极端低延迟目标。
 
-**11. 创建、初始化与销毁。** main 先建立队列和指标，再构造本对象并在 `std::jthread` 中调用 `Run`。对象和借用资源必须在工作线程结束后才销毁。阶段初始化不启动额外线程，不自动连接网络；首次遇到品种时才创建其空簿。析构只销毁本地订单簿，不能替代显式的正常停止和排空。
+**11. 创建、初始化与销毁。** 主线程在 RunService 中先建立队列和指标，再构造本对象并在 `std::jthread` 中调用 `Run`。对象和借用资源必须在工作线程结束后才销毁。阶段初始化不启动额外线程，不自动连接网络；首次遇到品种时才创建其空簿。析构只销毁本地订单簿，不能替代显式的正常停止和排空。
 
 #### 4.3.3 模块整体协作
 
@@ -836,7 +842,7 @@ assert(first.qty == 10 * qlib::qty_scale);
 
 **5. 成员变量及其设计理由。**
 
-| 成员 | 规划类型 | 作用与理由 |
+| 成员 | 类型 | 作用与理由 |
 |---|---|---|
 | `record_queue_` | `RecordQueue&` | 借用输入队列，不复制其中的数据或队列所有权。 |
 | `out_root_` | `std::filesystem::path` | 配置给出的输出根目录。 |
@@ -849,7 +855,7 @@ assert(first.qty == 10 * qlib::qty_scale);
 
 **7. 成员函数及其设计理由。** `Run` 规定工作生命周期，`Open` 创建输出，`Consume` 做一次类型分发，`Close` 完成显式保存。把单次消费分离出来，可以直接用固定变体测试映射，而不靠持续运行时长猜测结果。
 
-**8. 成员函数详细规格。** 以下为规划声明，不表示现有 qbook 已实现。
+**8. 成员函数详细规格。** 以下摘录已实现的业务接口，完整声明位于 `include/Threads/WriterThread.h`。
 
 ```cpp
 class WriterThread {
@@ -879,9 +885,11 @@ private:
 
 输出使用 `out_root/run-<候选标识>/`，候选标识可以由高精度时间、进程标识和递增尝试编号组成，但唯一性由排他 `create_directory` 的成功结果保证，不能只相信时间戳。目录已存在就换候选值，其他文件系统错误则失败。这个规则修正参考项目仅用秒级时间命名可能碰撞的问题；不是要增加数据库或全局命名服务。
 
+实现使用原生时钟 tick、pid 和最多 128 次候选尝试。同名普通文件属于错误，已有目录可以换下一个候选；成功目录保存在 Writer 的 run_dir_，仅在所属线程或 join 后访问。每个 Parquet 文件使用 `O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC` 排他打开，Arrow 成功接管 fd 后局部 RAII 才解除所有权。
+
 **10. 类的技术选型、替代方案与设计取舍。** 单独 Writer 线程可把文件操作与订单更新分开，代价是排队、一次变体转交以及写入滞后。直接在 Book 线程写文件更简单，但会把磁盘停顿带入业务处理；多写入线程能提高某些负载的吞吐，却会增加顺序、文件所有权和停止协调成本，本版不采用。
 
-**11. 创建、初始化与销毁。** `main` 先创建队列和阶段对象，再启动 Writer 工作线程；文件在该线程的 `Open` 中建立。Run 在调用 Open 前建立清理守卫；正常路径先显式 Close，随后在 Writer 线程中 reset writer_，失败路径也在该线程中 reset，只做不抛异常的资源清理，不重试失败批次，不覆盖原始错误。正常停止顺序是 Book 完成、请求 Writer 停止、Writer 排空并关闭、`main` 等待 `join`。实例销毁发生在最后，此时 writer_ 为空，不依赖主线程析构偷偷完成业务保存。
+**11. 创建、初始化与销毁。** 主线程在 RunService 中先创建队列和阶段对象，再启动 Writer 工作线程；文件在该线程的 `Open` 中建立。Run 在调用 Open 前建立清理守卫；正常路径先显式 Close，随后在 Writer 线程中 reset writer_，失败路径也在该线程中 reset，只做不抛异常的资源清理，不重试失败批次，不覆盖原始错误。正常停止顺序是 Book 完成、请求 Writer 停止、Writer 排空并关闭、主线程等待 `join`。实例销毁发生在最后，此时 writer_ 为空，不依赖主线程析构完成业务保存。
 
 ##### 4.4.2.2 `ParquetWriter`
 
@@ -895,7 +903,7 @@ private:
 
 **5. 成员变量及其设计理由。**
 
-| 成员或内部类型 | 规划类型 | 作用与不变量 |
+| 成员或内部类型 | 类型 | 作用与不变量 |
 |---|---|---|
 | `orders_` / `trades_` / `cancels_` / `levels_` / `books_` | 各一个 `std::unique_ptr<Sink>` | 一种类型一个文件；不按交易品种开文件，避免文件数量随品种数增长。 |
 | `state_` | 私有枚举 `State` | 区分可追加、已关闭、已失败，阻止失败后的伪成功。 |
@@ -961,6 +969,21 @@ private:
 
 本版固定创建五类文件；没有对应记录的文件允许零行。schema 元数据至少标明 qbook 文件格式版本、qlib 精度、快照深度和枚举含义。独立文件保留同类型队列消费顺序，不新增跨文件全局事件序号，也不承诺在上游没有全序的条件下重建全部类型的原始先后关系。
 
+V3 文件格式版本为 1，各标量列、列表列及列表子值均为非空字段。未知时间 0 和空侧 0/0 保存为整数值。schema 保存以下固定键值，`ARROW:schema` 由 Arrow 管理以恢复长度 1 的 fixed_size_list。
+
+| 元数据键 | 固定值 |
+|---|---|
+| `qbook.format_version` | `1` |
+| `qbook.price_scale` | `10000000000` |
+| `qbook.qty_scale` | `100000000` |
+| `qbook.time_unit` | `unix_epoch_ns` |
+| `qbook.snapshot_depth` | `1` |
+| `qbook.side` | `0:buy,1:sell` |
+| `qbook.order_type` | `0:limit,1:market` |
+| `qbook.order_action` | `0:add,1:modify` |
+
+每次 Flush 完成 builders，验证 RecordBatch，再通过同一个 FileWriter 的 WriteTable 写入该类型的一批；列级并行关闭。物理 row group 数量由库限制共同决定，不保证每批对应且仅对应一个 row group。错误清理先 Abort 输出流，再释放可能在析构中尝试 Close 的 Parquet writer；应用不重放批次。固定库内部可能执行收尾，失败运行仍整体判失败。
+
 **9. 类的关键算法与行为流程。** 追加一条订单时，先确认 Open，再按 schema 顺序写入 11 个字段，所有列追加成功后增加行数。达到批量上限时将这些列完成为同长度数组并写出，写出成功后准备下一批。正常 Close 对每个 Sink 重复同一 Flush 逻辑，最后关闭 writer 和输出流；任何一步失败都向外报告，不能仅因为部分文件已经关闭就报告整体成功。
 
 **10. 类的技术选型、替代方案与设计取舍。** Parquet 适合离线按列分析，也能保留准确整数，代价是批次内存、压缩 CPU 和关闭前不可完整读取。逐条 CSV 更直观但体积和格式校验较弱；数据库支持在线查询但增加服务依赖，本项目没有对应需求。ZSTD 是参考方案的默认压缩选择，实际性能应测量；本版不加入每条记录刷盘或崩溃恢复承诺。
@@ -971,7 +994,7 @@ private:
 
 **1. 类之间的调用与协作流程。** Book 阶段向 RecordQueue 推送原始事件或快照；WriterThread 取出一次，按变体调用一次 `ParquetWriter::Add`，成功后递增追加指标。正常停止先让生产者退出，再排空队列、写尾批次并显式关闭。指标只证明 Add 已完成，不等价于磁盘断电安全。
 
-**2. 模块完整使用示例。** 下例是规划的同步文件接口示例；测试准备一个新建、独占的临时目录，再执行这段逻辑，最后用 Parquet 读取工具核对三行及列值。这里仅展示文件组件，不假装 qbook 已有可执行示例程序。
+**2. 模块完整使用示例。** 下例展示已实现的同步文件接口；调用者准备新建、独占的目录，再执行这段逻辑，最后用 Parquet 读取器核对三行及列值。完整服务入口为 qbook，实际运行与测试命令见 README。
 
 ```cpp
 // run_dir 由测试排他创建；价格、数量按 qlib 的倍率填写。
@@ -1430,18 +1453,23 @@ qlib 当前为头文件接口库，可使用 `add_subdirectory(third_party/qlib)
 | V1 核心 | `qbook_core` 仅包含 `src/Orderbook.cpp`，公开 include、C++23 与 `qlib::qlib`；独立于支持库、日志、网络和文件。 |
 | V2 协议与阶段 | `qbook_protocol` 包含纯协议实现，仅公开 qlib；`qbook_pipeline` 包含 Feed/Book，公开链接 core/support/protocol、`cppzmq` 和 `Threads::Threads`，日志使用私有 `qbook_logging`。 |
 | V2 通信依赖 | 官方 libzmq 4.3.5 与 cppzmq 4.10.0 完整源码保留于 third_party；各有 SHA-256 清单和许可证。通过真实 `cppzmq` 接口目标链接 `libzmq` 动态库，不在配置时下载。 |
-| 完整服务（后续） | `qbook` 主程序加入正式装配与持久化；Arrow/Parquet 的实际版本和导出目标在 V3 接入时核对。 |
+| V3 持久化 | `qbook_storage` 包含 ParquetWriter 和排他文件适配；`qbook_writer` 包含 WriterThread 和运行目录。两个目标由 `QBOOK_BUILD_PERSISTENCE` 控制，独立于 ZMQ。 |
+| V3 正式服务 | `qbook_service` 包含 Service.cpp，链接真实 pipeline/writer；`qbook` 包含 main.cpp。只有同时启用 PIPELINE、PERSISTENCE、SERVICE 才建立服务。 |
+| V3 Arrow/Parquet | Apache 官方 Ubuntu 24.04 amd64 26.0.0-1 包提取到 `.deps/arrow-26.0.0/usr`；链接官方 `Arrow::arrow_shared`、`Parquet::parquet_shared`。包和许可证由 JSON 锁文件及安装脚本管理。 |
 | 配置与日志 | 初始采用 fkYAML、spdlog 头文件依赖，保留版本来源与许可证，不假定容器里已经安装。 |
-| 功能测试 | 固定 Catch2 v3 与 CTest；`qbook_tests` 保留 V0/V1 回归并加入协议测试，前缀 `unit::`。`qbook_allocation_tests` 保留自测和 F01～F05，前缀 `allocation::`，仅此程序链接分配替换。`qbook_pipeline_tests` 使用 `pipeline::` 前缀，包含 Feed、Book 和完整测试链路。 |
+| 功能测试 | 固定 Catch2 v3 与 CTest；unit 69、allocation 6、pipeline 40、storage 18、service 21，共 154 项。分配替换只链接 allocation；文件读取和故障流只进入测试目标。服务测试驱动复用真实服务，正式 qbook 不接入测试配置。 |
 | 性能实验 | 独立 benchmark 目标，默认不作为普通功能测试门槛；先采用最小测量程序，是否引入额外框架由性能版本的实验需求决定。 |
 | UI | 沿用参考项目 Next.js 15 / React 19 的起点，Node、包补丁版本和平台依赖由实际接入锁定；不能声称上传源码已在新环境完成安装验证。 |
 
-`BUILD_TESTING` 控制本项目测试。`QBOOK_BUILD_PIPELINE` 默认 ON，控制通信依赖、流水线库及其测试；OFF 时不查找或构建 ZMQ，保留支持库、核心库和纯协议测试。`QBOOK_BUILD_SERVICE` 与 `QBOOK_BUILD_BENCHMARKS` 默认 OFF。
+`BUILD_TESTING` 控制本项目测试。`QBOOK_BUILD_PIPELINE` 默认 ON，控制通信依赖、流水线库及其测试；OFF 时不查找或构建 ZMQ，保留支持库、核心库和纯协议测试。`QBOOK_BUILD_PERSISTENCE`、`QBOOK_BUILD_SERVICE` 与 `QBOOK_BUILD_BENCHMARKS` 默认 OFF。
 
-当前服务/benchmark 开关为 ON 时明确拒绝配置。`BUILD_TESTING=OFF` 按流水线开关构建生产库，不引入 Catch2、发布者、收集器、检查器或分配替换。libzmq 的测试、文档、性能工具、draft、CURVE、WebSocket 和可选第三方后端关闭。
+SERVICE 为 ON 而 PIPELINE 或 PERSISTENCE 为 OFF 时明确拒绝配置；benchmark 为 ON 仍拒绝配置。`BUILD_TESTING=OFF` 按能力开关构建生产库和正式服务，不引入 Catch2、发布者、收集器、读取器、测试驱动或分配替换。libzmq 的测试、文档、性能工具、draft、CURVE、WebSocket 和可选第三方后端关闭。
+持久化启用时才查找 Arrow/Parquet 26.0.0 EXACT。安装脚本按锁文件下载或读取缓存，校验哈希、提取包并保留许可证；CMake 配置和构建不联网。运行库通过本地 RPATH 解析，移动仓库后需重新配置并链接。固定包仍依赖 Ubuntu 基础运行库，不承诺完整系统镜像复现。
 qlib 按用户 2026-10-20 授权，以 `/mnt/d/Desktop/unsw/qlib` 的完整源码副本和
 `third_party/qlib.sha256` 固定内容版本，原目录只读；当前无 Git 提交可记录。
 依赖版本、许可证和构建接入见 [README](../README.md)。
+
+V3 实测结果为完整 Debug 154/154、核心分支 75/75、Release 文件与服务 39/39 通过。关闭测试的完整生产构建不含 Catch2 或测试目标；SERVICE 缺少任一前置开关均明确拒绝配置。未逐点注入 Arrow 内部分配失败、fd 移交内部失败、系统 close 与信号系统调用错误；相关返回值、状态与固定库资源契约经代码审阅。重复信号测试连续发送同一信号，可能发生合并，其证据不等于确定覆盖收尾期间的第二次信号。实际命令和限制见本地 V3 记录。
 
 ### 5.5 其他质量设计及其依据
 
@@ -1499,11 +1527,11 @@ ID 扩容夹具使用固定 qlib 下同价六单、hive 与 ID 容量均为 8 �
 
 ### 6.3 多模块协作场景
 
-V2 用有限 XPUB 发布者和有上限的 `RecordCollector` 验证内存记录链路。发布者收到空主题订阅通知后才发送；网络装配以原事件目标、目标之后的快照及完整接收/拒绝计数作为完成条件。受控队列装配另行记录每一次成功 push，全部线程 join 后将原事件与输出逐条比较。Collector 不更新 writer_* 指标；正常顺序是 Feed stop/join → Book 排空/join → Collector 排空/join，Book 和 Collector 均先观察 stop，再确认输入为空。超时或部分启动失败由测试守卫广播 Fatal、释放暂停并 join 已启动线程。正式文件验收仍采用下述 V3 场景。
+V2 用有限 XPUB 发布者和有上限的 `RecordCollector` 验证内存记录链路。发布者收到空主题订阅通知后才发送；网络装配以原事件目标、目标之后的快照及完整接收/拒绝计数作为完成条件。受控队列装配另行记录每一次成功 push，全部线程 join 后将原事件与输出逐条比较。Collector 不更新 writer_* 指标；正常顺序是 Feed stop/join → Book 排空/join → Collector 排空/join，Book 和 Collector 均先观察 stop，再确认输入为空。超时或部分启动失败由测试守卫广播 Fatal、释放暂停并 join 已启动线程。V3 文件验收使用真实 Writer、独立 Reader、受控流故障与子进程，沿用相同接纳边界。
 
 重点验收正常与失败的两种关闭路径。正常停止期间输入队列和记录队列都应有待处理项，验证 Feed 停止后 Book 仍能排空、Book 结束后 Writer 才排空并关闭；以成功入 FeedQueue 的记录数为基准核对文件。
 
-失败场景在 RecordQueue 已满或接近满时注入 Writer 写入错误，确认 Book 的 Forward 能观察 Failed 而退出，Feed 的重试也能退出，主线程完成所有 join 并返回非零。还要检查线程创建部分成功后失败、指标端口绑定失败，以及正常停止过程中出现写错误的路径。
+失败场景在 RecordQueue 已满或接近满时注入 Writer 写入错误，确认 Book 的 Forward 能观察 Failed 而退出，Feed 的重试也能退出，主线程完成所有 join 并返回非零。V3 同时检查线程创建部分成功后失败，以及正常停止中的尾批与 Close 写错误。指标端口绑定失败随 V4 发布阶段接入时验证。
 
 业务与日志不能只靠“没有挂起几秒”验收。测试要明确完成条件、故障已被报告、线程都已结束及输出完整性结论；限时防挂起可以作为测试保护，但不是产品硬实时停止承诺。
 
@@ -1533,9 +1561,9 @@ V2 用有限 XPUB 发布者和有上限的 `RecordCollector` 验证内存记录�
 | SP-04 对应 OI-04 | 性能验收机器、代表性负载和绝对目标未确定。 | 性能版本开始前确认；当前只承诺方法与证据完整，不承诺某个纳秒数或每秒条数。 |
 | SP-05 对应 OI-05 | 本规格选择 UI 初始默认：采样100ms时为1秒速率窗口、60秒真实到达时间趋势、1500ms样本停滞阈值、500ms检查；其他周期按4.6.2.3同步UI配置并调整窗口与阈值；首轮用记录版本的桌面Chromium。 | 这些是设计默认，不是已通过界面验收；需要在UI接入时锁定版本并验证。 |
 | SP-06 对应 OI-06 | 本版保留上游seq，不额外增加跨文件本地总序号。 | 若后续需要严格回放所有类型的统一先后顺序，必须修改外部数据和验收，不承诺现有文件天然提供。 |
-| SP-07 构建依赖 | V0 已固定 fkYAML、spdlog、Catch2；V2 已固定 libzmq 4.3.5、cppzmq 4.10.0 完整源码。Arrow/Parquet 和 UI 包留待 V3/V4。 | 通信库只随流水线开关接入；后续依赖只影响相应版本目标。 |
+| SP-07 构建依赖 | V0 已固定 fkYAML、spdlog、Catch2；V2 已固定 libzmq 4.3.5、cppzmq 4.10.0 完整源码；V3 已固定 Arrow/Parquet 26.0.0-1 及其 Ubuntu 包依赖。UI 包留待 V4。 | 通信和文件库分别随对应开关接入；UI 依赖只影响 V4 目标。 |
 
-以上“已选择”只说明本规格给出了设计决策，不自动修改上一份需求文件的历史记录。后续将这些文档纳入同一仓库时，应同步关闭已经决定的问题、统一实际文件名，并对改变产品范围的事项保留明确变更记录。
+上述设计决策与实际验证状态分别记录。后续实施应同步已解决问题和相关文档；改变产品范围时保留明确变更记录，不改写需求文件的历史记录。
 
 ## 8. 变更记录
 
@@ -1545,3 +1573,4 @@ V2 用有限 XPUB 发布者和有上限的 `RecordCollector` 验证内存记录�
 | 0.2 | 2026-10-20 | Codex | 固定 V0 YAML 九键表示、支持库/测试构建与本地 qlib 内容版本，更新对应验收边界；保留后续业务契约。 |
 | 0.3 | 2026-10-20 | Codex | 同步 V1 已实现的核心与两个测试目标、只读观察器、固定饱和内存估计、成员移动检查及专用分配失败机制；业务语义与 ABI 保持原约定。 |
 | 0.4 | 2026-10-22 | Codex | 同步 V2 已实现的协议与 Feed/Book、诊断和算术细化、停止顺序、测试装配及固定通信依赖；115/115 测试及两个构建分支通过，业务契约与 ABI 不变。 |
+| 0.5 | 2026-10-23 | Codex | 同步 V3 五类文件格式、Writer、Service.cpp、信号与资源生命周期、固定 Arrow/Parquet 依赖和构建分支；Debug 154/154、核心 75/75、Release 文件/服务 39/39 通过，业务契约与 ABI 不变。 |
