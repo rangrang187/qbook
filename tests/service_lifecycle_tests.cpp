@@ -6,6 +6,7 @@
 #include "support/PipelineTestSupport.h"
 
 #include <arrow/table.h>
+#include <zmq.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <cerrno>
@@ -26,7 +27,8 @@ auto Deadline() { return std::chrono::steady_clock::now() + 10s; }
 
 std::string ConfigText(const std::string& endpoint) {
   return "feed_endpoint: '" + endpoint + "'\nfeed_queue_capacity: 8\n"
-      "record_queue_capacity: 8\nsnapshot_period: 20\nbatch_rows: 8\n";
+      "record_queue_capacity: 8\nsnapshot_period: 20\nbatch_rows: 8\n"
+      "metrics_endpoint: 'tcp://127.0.0.1:*'\n";
 }
 
 void IdleConfig(ProcessHarness& process) {
@@ -71,6 +73,7 @@ void WaitReady(ProcessHarness& process) {
   process.WaitForOutput("service_control_ready", deadline);
   process.WaitForOutput("writer_opened", deadline);
   process.WaitForOutput("feed_connected", deadline);
+  process.WaitForOutput("metrics_bound", deadline);
 }
 }  // namespace
 
@@ -151,11 +154,12 @@ TEST_CASE("正式服务报告网络和输出初始化故障", "[service][lifecyc
   process.RemoveDirectory();
 }
 
-TEST_CASE("服务创建零一个或两个线程后失败会清理已创建阶段", "[service][lifecycle]") {
+TEST_CASE("服务在四个创建边界失败会清理所有已创建阶段", "[service][lifecycle]") {
   std::string mode;
-  SECTION("创建Writer前") { mode = "startup0"; }
-  SECTION("创建Book前") { mode = "startup1"; }
-  SECTION("创建Feed前") { mode = "startup2"; }
+  SECTION("创建Metrics前") { mode = "startup0"; }
+  SECTION("创建Writer前") { mode = "startup1"; }
+  SECTION("创建Book前") { mode = "startup2"; }
+  SECTION("创建Feed前") { mode = "startup3"; }
   ProcessHarness process(QBOOK_SERVICE_TEST_DRIVER, {mode});
   IdleConfig(process);
   process.Start();
@@ -184,7 +188,7 @@ TEST_CASE("协调阶段异常结束真实线程并返回失败", "[service][life
   const auto& result = process.Wait(Deadline());
   RequireFailure(result);
   REQUIRE(result.output.find("injected_coordinator_failure") != std::string::npos);
-  REQUIRE(result.output.find("driver_cleanup_verified started=3") != std::string::npos);
+  REQUIRE(result.output.find("driver_cleanup_verified started=4") != std::string::npos);
   process.RemoveDirectory();
 }
 
@@ -298,4 +302,25 @@ TEST_CASE("追加目标仅在原事件后出现正确快照时发布", "[service
   observer.Observe(expected);
   REQUIRE(observer.Reached());
   REQUIRE_THROWS(observer.Observe(order));
+}
+
+TEST_CASE("真实指标端口占用使四阶段服务失败并清理", "[service][lifecycle][metrics]") {
+  zmq::context_t context(1);
+  zmq::socket_t occupied(context, zmq::socket_type::pub);
+  occupied.set(zmq::sockopt::linger, 0);
+  occupied.bind("tcp://127.0.0.1:*");
+  const auto endpoint = occupied.get(zmq::sockopt::last_endpoint);
+  ProcessHarness process(QBOOK_EXECUTABLE);
+  auto config = ConfigText("ipc://" + (process.Directory() / "no-publisher.ipc").string());
+  const auto previous = config.find("metrics_endpoint:");
+  config.erase(previous);
+  config += "metrics_endpoint: '" + endpoint + "'\n";
+  process.WriteConfig(config);
+  process.Start();
+  const auto& result = process.Wait(Deadline());
+  RequireFailure(result);
+  REQUIRE(result.output.find("stage=metrics") != std::string::npos);
+  REQUIRE(result.output.find("metrics_bound") == std::string::npos);
+  // 子进程退出证明所有实际创建的阶段均已 join；失败目录不是正常保存证据。
+  process.RemoveDirectory();
 }

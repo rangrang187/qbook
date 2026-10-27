@@ -15,6 +15,7 @@
 #include <filesystem>
 #include <fstream>
 #include <memory>
+#include <limits>
 #include <optional>
 #include <pthread.h>
 #include <stdexcept>
@@ -112,7 +113,7 @@ void CheckWorkerMasks() {
     }
     if (!found) throw std::runtime_error("无法读取工作线程信号状态");
   }
-  if (workers < 3) throw std::runtime_error("三个服务阶段未全部运行");
+  if (workers < 4) throw std::runtime_error("四个服务阶段未全部运行");
 }
 
 template<class T>
@@ -151,7 +152,8 @@ int main(int argc, char** argv) {
     std::uint64_t messages = 0, dropped = 0;
     int stop_signal = SIGTERM;
     int fail_before = -1;
-    if (mode == "goal") {
+    const bool monitor_goal = mode == "monitor-goal";
+    if (mode == "goal" || monitor_goal) {
       if (argc != 14) throw std::invalid_argument("goal 需要12个目标参数");
       goal.orders = Number<std::size_t>(argv[2]);
       goal.trades = Number<std::size_t>(argv[3]);
@@ -172,11 +174,22 @@ int main(int argc, char** argv) {
     } else if (mode == "tail-failure") {
       goal.orders = 1;
       messages = 1;
-    } else if (mode == "startup0" || mode == "startup1" || mode == "startup2") {
+    } else if (mode == "startup0" || mode == "startup1" || mode == "startup2" || mode == "startup3") {
       fail_before = mode.back() - '0';
     } else if (mode != "signal-mask" && mode != "pending-signal" &&
                mode != "close-failure" && mode != "poll-failure") {
       throw std::invalid_argument("未知测试驱动模式");
+    }
+    // monitor-goal 的第二阶段固定为同品种再新增 B3 买 99/4，最优档保持不变。
+    // 两个观察器都接收完整实际记录；第七条之后还须匹配最新事件时间和盘口。
+    std::unique_ptr<qbook::testing::WriterGoalObserver> second_observer;
+    const auto first_raw_goal = goal.orders + goal.trades + goal.cancels + goal.levels;
+    if (monitor_goal) {
+      if (goal.orders == std::numeric_limits<std::size_t>::max())
+        throw std::invalid_argument("第二阶段订单目标溢出");
+      auto second_goal = goal;
+      ++second_goal.orders;
+      second_observer = std::make_unique<qbook::testing::WriterGoalObserver>(std::move(second_goal));
     }
     qbook::testing::WriterGoalObserver observer(std::move(goal));
     auto probe = std::make_shared<qbook::testing::StreamProbe>();
@@ -186,26 +199,40 @@ int main(int argc, char** argv) {
     auto factory = qbook::testing::MakeOutputFactory(probe, fault);
     std::atomic<std::size_t> opened{0};
     qbook::detail::WriterHooks writer_hooks;
-    writer_hooks.output_factory = [&](const std::filesystem::path& path) {
+    if (!monitor_goal) writer_hooks.output_factory = [&](const std::filesystem::path& path) {
       RequireStopMask(true);
       auto output = factory(path);
       opened.fetch_add(1, std::memory_order_release);
       return output;
     };
+    std::atomic<std::size_t> records_added{0}, records_snapshotted{0};
+    std::size_t writer_records = 0;
     writer_hooks.after_add = [&](const qlib::record& record) {
-      observer.Observe(record);
+      // 监控目标完成后继续处理额外输入；该冻结目标不能把后续合法事件当超量。
+      if (!monitor_goal || !observer.Reached()) observer.Observe(record);
+      if (monitor_goal) {
+        if (!second_observer->Reached()) second_observer->Observe(record);
+        if (std::holds_alternative<qlib::book>(record)) {
+          if ((writer_records == first_raw_goal && observer.Reached()) || second_observer->Reached())
+            records_snapshotted.store(writer_records, std::memory_order_release);
+        } else {
+          records_added.store(++writer_records, std::memory_order_release);
+        }
+      }
       if (mode == "tail-failure" && std::holds_alternative<qlib::order>(record))
         probe->armed.store(true, std::memory_order_release);
     };
     int started = 0;
     bool signaled = false;
-    const auto deadline = std::chrono::steady_clock::now() + 10s;
+    bool goal_reported = false;
+    std::size_t reported_added = 0, reported_snapshotted = 0;
+    const auto deadline = std::chrono::steady_clock::now() + (monitor_goal ? 180s : 10s);
     qbook::detail::ServiceHooks hooks;
     hooks.writer_hooks = &writer_hooks;
     hooks.before_start = [&](const char* stage) {
       RequireStopMask(true);
-      constexpr std::array<std::string_view, 3> order{"writer", "book", "feed"};
-      if (started >= 3 || order[started] != stage) throw std::runtime_error("阶段启动顺序错误");
+      constexpr std::array<std::string_view, 4> order{"metrics", "writer", "book", "feed"};
+      if (started >= 4 || order[started] != stage) throw std::runtime_error("阶段启动顺序错误");
       if (started == fail_before)
         throw std::system_error(std::make_error_code(std::errc::resource_unavailable_try_again),
                                 "injected_start_failure");
@@ -221,9 +248,25 @@ int main(int argc, char** argv) {
         throw std::runtime_error("测试驱动未在期限内达到目标");
       if (signaled) return;
       bool ready = opened.load(std::memory_order_acquire) == 5;
-      if (mode == "goal" || mode == "tail-failure")
+      if (mode == "goal" || monitor_goal || mode == "tail-failure")
         ready = observer.Reached() && metrics.feed_messages.Read() == messages &&
                 metrics.feed_dropped.Read() == dropped;
+      if (monitor_goal) {
+        if (!goal_reported && ready) {
+          goal_reported = true;
+          spdlog::info("driver_goal_reached");
+        }
+        if (goal_reported) {
+          const auto added = records_added.load(std::memory_order_acquire);
+          const auto snapshotted = records_snapshotted.load(std::memory_order_acquire);
+          if (added != reported_added || snapshotted != reported_snapshotted) {
+            reported_added = added;
+            reported_snapshotted = snapshotted;
+            spdlog::info("driver_progress records_added={} records_snapshotted={}", added, snapshotted);
+          }
+        }
+        return;  // 外部测试仅向本驱动的准确 PID 发送正常停止信号。
+      }
       if (!ready) return;
       if (mode == "poll-failure") throw std::runtime_error("injected_coordinator_failure");
       if (mode == "signal-mask") CheckWorkerMasks();
@@ -237,7 +280,7 @@ int main(int argc, char** argv) {
       if (started != fail_before || result == 0) throw std::runtime_error("部分启动故障没有实际发生");
       spdlog::info("driver_cleanup_verified started={}", started);
     } else if (mode == "poll-failure") {
-      if (started != 3 || result == 0) throw std::runtime_error("协调故障没有实际发生");
+      if (started != 4 || result == 0) throw std::runtime_error("协调故障没有实际发生");
       spdlog::info("driver_cleanup_verified started={}", started);
     } else if (mode == "tail-failure" || mode == "close-failure") {
       if (!signaled || result == 0 || probe->failures == 0)
@@ -246,6 +289,11 @@ int main(int argc, char** argv) {
     } else if (mode == "signal-mask") {
       if (!signaled || result != 0) throw std::runtime_error("信号屏蔽场景没有正常完成");
       spdlog::info("driver_signal_restored");
+    } else if (monitor_goal && result == 0) {
+      if (!goal_reported || !observer.Reached())
+        throw std::runtime_error("监控目标未达到就返回成功");
+      spdlog::info("driver_monitor_stopped records_added={} records_snapshotted={}",
+          records_added.load(), records_snapshotted.load());
     } else if (mode == "goal" && result == 0) {
       if (!signaled || !observer.Reached()) throw std::runtime_error("网络目标未达到就返回成功");
       spdlog::info("driver_goal_reached");

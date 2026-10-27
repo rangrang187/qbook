@@ -6,7 +6,10 @@ V1 已实现独立的 `Orderbook`：新增、修改、成交、撤单、L2 绝�
 V2 已完成纯协议、Feed 接收、Book 多品种处理、周期快照和原事件转交，全部 115 项 CTest 验收通过。
 V3 已实现五类 Parquet、Writer 阶段、正式三阶段服务及 SIGINT/SIGTERM 有序停止。
 V3 初次验收的完整 Debug 154/154、Release 存储与服务 39/39、核心关闭分支 75/75 均通过。
-指标网络发布、UI 和 benchmark 留待 V4/V5。
+V4 已实现指标发布、四阶段生命周期、Node/SSE 桥接和只读监控页面。
+本轮完整 C++ 回归 **167/167**、UI 单元与组件测试 **153/153** 及类型检查通过；
+100/2000 ms 两组真实 Chromium 验收各 **3/3** 通过，观察端离线后继续业务及文件读回通过。benchmark 留待 V5。
+验收后已清理本轮新建的 `build/`、`ui/node_modules/`、`ui/.next/` 和测试输出；下次按下文重新构建及 `npm ci`。
 
 需求、规格、任务和实现计划均位于 [docs](docs/)。
 V0 已通过 30 项自动化测试。完整验收记录位于本地 `docs/releases/V0.md`；
@@ -14,13 +17,15 @@ V0 已通过 30 项自动化测试。完整验收记录位于本地 `docs/releas
 V1 的完整验收记录保存到本地 `docs/releases/V1.md`；V2 的实际命令、输出核对和限制集中记录在本地 `docs/releases/V2.md`。
 V1 历史 Debug 与 ASan/UBSan 结果均为 60/60；V2 开发前已重新运行基线，60/60 通过。
 V3 的实际命令、文件读回与故障结果集中在本地 `docs/releases/V3.md`。
+V4 本轮环境、命令、跨语言样本与浏览器验收记录位于本地 `docs/releases/V4.md`，不覆盖前置版本结果。
 
 ## 构建和测试
 
 目标平台为 Linux / WSL2、x86-64、小端、8 字节指针。
 需要 C/C++ 编译器、所用 C++23 特性、CMake 3.28 以上和 Ninja。
 基础依赖源码随工程保留。默认从仓库源码构建 libzmq/cppzmq，不要求系统预装 ZMQ。
-持久化默认关闭；完整 V3 使用开发环境提供的 Arrow/Parquet C++ 26.0.0，准备好后配置和构建不联网。不需要 Node。
+持久化默认关闭；完整服务使用开发环境提供的 Arrow/Parquet C++ 26.0.0，准备好后 C++ 配置和构建不联网。
+C++ 构建不依赖 Node；监控页面是 [ui/](ui/README.md) 下独立的 npm 工程。
 
 当前使用 [.devcontainer/devcontainer.json](.devcontainer/devcontainer.json) 指定的 `cpp-dev:latest` 开发容器，
 工作目录为 `/mnt/d/Desktop/unsw/qbook`。以下构建、测试和运行命令均在容器内、仓库根目录执行。
@@ -49,13 +54,14 @@ ctest --test-dir build/debug --output-on-failure --no-tests=error
 `qbook_pipeline_tests` 包含 Feed 9 项、Book 15 项和链路 16 项，共 40 项，前缀为 `pipeline::`，
 使用本机 TCP 临时端口与 XPUB 订阅通知建立就绪条件。
 所有测试程序使用同一份生产库。
-完整 V3 另注册 `qbook_storage_tests` 的 18 项 `storage::` 测试和
+完整 V3 历史注册 `qbook_storage_tests` 的 18 项 `storage::` 测试和
 `qbook_service_tests` 的 21 项 `service::` 测试，总计 154 项。
+V4 增加 `qbook_metrics_tests` 的 11 项 `metrics::` 测试，服务测试扩展至 23 项，总计 167 项。
 服务测试驱动只在测试构建中存在，链接同一份服务实现；不替代正式程序。
 
 | 开关 | 实际构建范围 |
 |---|---|
-| 默认 `QBOOK_BUILD_PIPELINE=ON` | `qbook_support`、`qbook_core`、`qbook_protocol`、`qbook_pipeline` 和固定通信依赖。 |
+| 默认 `QBOOK_BUILD_PIPELINE=ON` | `qbook_support`、`qbook_core`、`qbook_protocol`、`qbook_pipeline`、`qbook_metrics` 和固定通信依赖。 |
 | `QBOOK_BUILD_PIPELINE=OFF` | 支持库、核心库、纯协议库及其测试；不查找或构建 ZMQ。 |
 | `QBOOK_BUILD_PERSISTENCE=ON` | 增加 `qbook_storage`、`qbook_writer` 和固定 Arrow/Parquet；这两个库不依赖 ZMQ。默认 OFF。 |
 | `QBOOK_BUILD_SERVICE=ON` | 增加 `qbook_service` 和真实 `qbook`；必须同时显式开启 PIPELINE、PERSISTENCE。默认 OFF。 |
@@ -68,7 +74,7 @@ V1 的历史 sanitizer 检查覆盖全部 60 项测试，包含分配故障用�
 `qbook_core` 仅链接 `qlib::qlib`，独立于支持库、日志、网络和文件依赖。
 `QBOOK_BUILD_BENCHMARKS=ON` 仍明确拒绝配置。
 
-完整 V3 在开发容器中构建并验收，显式选择容器系统包：
+完整 V4 在开发容器中构建并验收，显式选择容器系统包；此命令也保留 V0～V3 回归：
 
 ```bash
 cmake -S . -B build/debug -G Ninja \
@@ -180,7 +186,7 @@ Arrow/Parquet 的运行时依赖由容器系统库解析。项目自行构建的
 
 `ValidateConfig` 在取整、字节乘法、时间换算和到期点加法前检查表示范围。
 验证不分配队列，不创建输出目录，不连接端点；数值合法也不保证实际资源足够。
-C++ 配置不接受命令行或环境变量覆盖；后续 UI 的构建变量不覆盖 C++ 配置。
+C++ 配置不接受命令行或环境变量覆盖；UI 的构建变量不覆盖 C++ 配置。
 
 ## 运行与文件
 
@@ -204,11 +210,12 @@ kill -TERM "$qbook_pid"
 wait "$qbook_pid"
 ```
 
-正常退出码为 0；配置、初始化、运行或关闭失败均非零。启动按 Writer → Book → Feed；
-正常停止按 Feed stop/join → Book 排空/join → Writer 排空、Close、join。
+正常退出码为 0；配置、初始化、运行或关闭失败均非零。启动按 Metrics → Writer → Book → Feed；
+正常停止按 Feed stop/join → Book 排空/join → Writer 排空、Close、join → Metrics stop/join。
 `writer_opened` 日志公布本次独占 `data_out/run-<标识>/` 路径，重复运行不会覆盖旧文件。
 `feed_connected` 表示本地接收资源初始化，不能证明发布端在线或行情已流入。
-V3 不启动指标发布线程，配置中的指标端点和周期保留给 V4。
+`metrics_bound` 表示本地指标端口已绑定；没有订阅者或 Node 离线不使业务失败。
+绑定及不可恢复发布错误仍触发全体取消。指标不保证在正常停止时额外发送最终帧，最终文件行数以 Close 后读回为准。
 
 每次固定创建以下五文件；没有记录的类型仍有可读 schema。字段全部非空：
 
@@ -231,6 +238,59 @@ schema 元数据 `qbook.format_version=1`，另含 `qbook.price_scale=1000000000
 故障目录可能含部分文件，应按失败采集处理；不重试结果不明的批次，不承诺断电安全、强杀恢复或跨文件全序。
 网络和文件访问权限由受控运行环境管理，本版未提供公网认证或多租户隔离。
 
+## 监控页面
+
+UI 使用 Next.js App Router、React、TypeScript 与 Node 版 zeromq。
+本轮实际 Node **24.22.1 LTS**、npm **11.19.1**；直接依赖固定版本和唯一
+`ui/package-lock.json` 一起维护，详细版本和官方来源见 [UI 说明](ui/README.md)。
+当前容器原先没有 Node/npm，本轮将经官方 SHA-256 校验的固定工具安装到
+`/opt/node-v24.22.1-linux-x64`，通过 `/usr/local/bin` 提供 node/npm；清理临时 build 不影响它。
+新建容器仍需安装同版本工具，现有镜像名称本身不保证包含这些工具。
+不把 Node、UI 或原生 zeromq 依赖加入 C++ 核心库。
+
+先在另一个容器终端运行完整 qbook，确认 YAML 中 `sample_period: 100`。
+从仓库根进入 UI 后执行：
+
+```bash
+cd ui
+npm ci
+npm run typecheck
+npm run test:unit
+NEXT_PUBLIC_METRICS_SAMPLE_PERIOD_MS=100 npm run build
+QBOOK_METRICS_ENDPOINT=tcp://127.0.0.1:5556 npm start -- --hostname 0.0.0.0 --port 3000
+```
+
+通过 VS Code Ports 面板转发容器 3000 端口，在宿主机浏览器访问 `http://localhost:3000`。
+浏览器只访问 HTTP/SSE，不连接指标端口；`QBOOK_METRICS_ENDPOINT` 是 Node 服务端配置，不能由请求指定。
+关闭浏览器或停止 Node 只结束观察，qbook 继续处理业务；两个前台进程各自用 Ctrl+C 正常停止。
+
+浏览器预期周期在 **build 时**固定，必须与 C++ YAML 的 `sample_period` 配对。
+100 ms 对应 1000 ms 速率窗口、1500 ms 停滞阈值；2000 ms 对应 4000/6000 ms。
+两组均每 500 ms 检查状态。修改 `npm start` 的 `NEXT_PUBLIC_` 环境变量不会更新已构建页面。
+显式非法周期显示配置错误，不静默使用默认值。
+
+完整监控测试读取本轮 CMake 生成的 `build/debug/tests/runtime-paths.json`，使用真实发布器、
+服务、Next 生产进程和 Chromium。先完成上述完整 C++ 构建，再在 `ui/` 执行：
+
+```bash
+npx playwright install chromium
+NEXT_PUBLIC_METRICS_SAMPLE_PERIOD_MS=100 npm run build
+QBOOK_E2E_SAMPLE_PERIOD_MS=100 npm run test:e2e
+NEXT_PUBLIC_METRICS_SAMPLE_PERIOD_MS=2000 npm run build
+QBOOK_E2E_SAMPLE_PERIOD_MS=2000 npm run test:e2e
+NEXT_PUBLIC_METRICS_SAMPLE_PERIOD_MS=100 npm run build
+```
+
+浏览器还需环境提供其系统共享库；安装与实际版本记录在本地 V4 验收中。
+测试变量仅供编排，不增加生产 C++ 环境覆盖。编排器不替用户重新构建 UI。
+
+页面准确显示全部 64 位累计值，13 项累计量先以 BigInt 差分，3 项状态量下降不视为重启。
+速率按实际覆盖时间估计，首样本只建基线；趋势按真实 60 秒裁剪，最多 2000 个绘图点，断档不连线。
+connecting、live、stalled、offline 分别表示无首样本、持续收样本、样本过期和 SSE 错误；
+业务计数不变仍可 live，定时器不制造零值点。没有样本不能证明核心服务停止。
+订单/撤单合并统计；L2 本地挂单数为 0，不代表真实委托数；内存是估计；Writer Add 不等于落盘。
+抽样 Apply 均值来自独立原子字段的近期观察，不是 P99、端到端延迟或跨字段事务快照。
+
 ## 公共接口与并发约定
 
 - [PipelineTypes.h](include/PipelineTypes.h) 直接复用 qlib 事件和队列，并冻结全部协议字段类型、大小和偏移。variant、本地指针及原子对象不能直接作为通用网络格式。
@@ -243,7 +303,7 @@ schema 元数据 `qbook.format_version=1`，另含 `qbook.price_scale=1000000000
 - [Config.h](include/Config.h) 提供默认参数、`LoadConfig` 和 `ValidateConfig`，公共头不传播 YAML 类型。
 - [Orderbook.h](include/Orderbook.h) 提供 `OnOrder`、`OnTrade`、`OnCancel`、`OnLevel`、`OnSnapshot`、`size` 和 `MemoryBytes`，构造时绑定品种和 `BookMode::Mbo` 或 `BookMode::L2`。
 - [Runtime.h](include/Runtime.h) 的 `RunControl` 保留第一个原子交换获胜者的故障。运行线程只读 `Failed()`；所有潜在报告者 join 后才能读 `Error()` 和 `Stage()`。
-- [MetricsThread.h](include/Threads/MetricsThread.h) 当前只提供 `Metric`、`Metrics` 和 `SnapshotMetrics`。每个指标仅有一个写者；溢出保持旧值并抛错，快照逐字段读取，不保证整组来自同一瞬间。
+- [MetricsThread.h](include/Threads/MetricsThread.h) 提供基础指标与真实发布阶段。基础实现位于 [Metrics.cpp](src/Metrics.cpp)，只编入 `qbook_support`；网络实现属于 `qbook_metrics`。每个指标仅有一个写者，快照逐字段读取，不保证整组来自同一瞬间。Metrics 的 PUB/context 在 Run 线程拥有，非阻塞发送冻结的 136 字节普通值，不发送原子对象。
 
 `Orderbook` 的更新和读取均由同一个所有者串行执行，`const` 快照也不能与写入并发。
 入口接受已通过协议校验的事件。事件通过 `const&` 借用，输入字段与链接保持原值；订单簿只改变自己的副本。

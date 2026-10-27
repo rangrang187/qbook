@@ -1,0 +1,19 @@
+{
+  "tsNs": "9007199254740993",
+  "feedMessages": "100",
+  "feedBytes": "1000",
+  "feedOrders": "80",
+  "feedTrades": "20",
+  "feedLevels": "0",
+  "feedDropped": "0",
+  "bookEvents": "9007199254740993",
+  "bookApplyNs": "1000",
+  "bookSamples": "10",
+  "bookInstruments": "2",
+  "bookRestingOrders": "3",
+  "bookMemoryBytes": "4096",
+  "writerOrders": "80",
+  "writerTrades": "20",
+  "writerLevels": "0",
+  "writerBooks": "4"
+}

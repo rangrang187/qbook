@@ -1,8 +1,8 @@
 # qbook Spec（技术规格文档）
 
-版本：0.5｜日期：2026-10-23｜状态：V0～V3 已实现并通过对应测试；V4/V5 为设计基线
+版本：0.6｜日期：2026-10-26｜状态：V0～V4 已实现并验收；V5 为设计基线
 
-本文件依据 [requirement.md](requirement.md) 解释 qbook 的设计与接口契约，参考材料为 nqbook v0.5.0 与 qlib(V4) 源码。V0 已交付配置、共享类型与故障/指标基础；V1 已完成订单簿核心、同步快照及对应验证。V2 已建立协议、Feed/Book 阶段和测试链路；V3 已建立五类持久化、Writer、正式入口和信号停止。指标发布与 UI 留待 V4，性能实验留待 V5。具体实施与证据见 Implementation Plan 和本地版本记录，任务顺序见 Sprint Backlog，仓库工作规则见 [AGENTS.md](../AGENTS.md)。
+本文件依据 [requirement.md](requirement.md) 解释 qbook 的设计与接口契约，参考材料为 nqbook v0.5.0 与 qlib(V4) 源码。V0 已交付配置、共享类型与故障/指标基础；V1 已完成订单簿核心、同步快照及对应验证。V2 已建立协议、Feed/Book 阶段和测试链路；V3 已建立五类持久化、Writer、正式入口和信号停止。V4 已完成指标发布、四阶段服务、Node/SSE、只读页面及两组周期的真实浏览器与文件验收；性能实验留待 V5。具体实施与证据见 Implementation Plan 和本地版本记录，任务顺序见 Sprint Backlog，仓库工作规则见 [AGENTS.md](../AGENTS.md)。
 
 本文已核对 qlib 的实际接口，不把它机械视为 nlib 的改名。价格/数量倍率、队列容量语义与 CMake 目标已有源码依据；未确定的真实行情源和性能门槛在第 7 章保留；已接入依赖以 README 的固定来源和内容清单为准。代码块用于说明接口或协作方式，完整声明与可编译实现以仓库代码为准。
 
@@ -60,7 +60,7 @@ flowchart TD
 
 三个业务阶段各做一件事：Feed 解释外部消息，Book 更新业务并产生记录，Writer 将记录写入文件。独立监控线程只读指标，不读订单簿容器或队列内部。SSE 是服务端持续向浏览器推送文本事件的连接；浏览器不直接使用 ZMQ。
 
-V3 实际启动 Feed、Book、Writer 三个工作线程；图中的监控发布、Next.js 与浏览器部分为 V4 设计。V3 保留并更新 16 项原子指标，尚未发布到网络。
+V4 在 V3 的三个业务阶段之外加入 Metrics 工作线程，并已实现图中的 Node/SSE 和页面。16 项原子指标仍由业务阶段各自单写，Metrics 只读后发送普通 `qlib::metrics` 值；两组周期的浏览器验收结果见本地 V4 记录。
 
 ### 2.2 技术模块图
 
@@ -87,10 +87,10 @@ flowchart TD
 | T-02 行情接入 | `Protocol.h/.cpp`、`Threads/FeedThread.h/.cpp` | FR-03、FR-04 | 校验外部字段、解码、投递；不访问已有订单。 |
 | T-03 订单簿与事件处理 | `Orderbook.h/.cpp`、`Threads/BookThread.h/.cpp` | FR-05～FR-10 | 管理业务状态、分发事件、生成快照；不调用 Arrow。 |
 | T-04 持久化 | `ParquetWriter.h/.cpp`、`Threads/WriterThread.h/.cpp`、`detail/OutputStreams.*`、`detail/RunDirectory.*` | FR-11、FR-12 | 保存不可变记录并取得独占路径；不重新计算订单簿。 |
-| T-05 指标监控 | `Threads/MetricsThread.h/.cpp` 中的 `Metric/Metrics/MetricsThread` | FR-13～FR-15 | 更新/采样统计，不将普通 `qlib::metrics` 当原子共享对象。 |
-| T-06 监控界面 | `ui/lib/metrics.ts`、`ui/lib/rate.ts`、`ui/app/api/metrics/route.ts`、`ui/app/page.tsx` | FR-16、FR-17 | 消费指标、计算显示值；不向核心发送修改请求。 |
+| T-05 指标监控 | `include/Threads/MetricsThread.h`、`src/Metrics.cpp`、`src/Threads/MetricsThread.cpp`、`src/detail/MetricsLayout.h`、`src/detail/MetricsSend.h` | FR-13～FR-15 | 更新/采样统计，不将普通 `qlib::metrics` 当原子共享对象。 |
+| T-06 监控界面 | `ui/lib/metrics.ts`、`ui/lib/server/metrics-stream.ts`、`ui/lib/rate.ts`、`ui/lib/monitor.ts`、`ui/app/api/metrics/route.ts`、`ui/app/page.tsx`、`ui/components/MetricTrend.tsx` | FR-16、FR-17 | 消费指标、计算显示值；不向核心发送修改请求。 |
 
-公共声明位于 `include/`，实现位于 `src/`；`include/PipelineTypes.h` 定义 `BookMode` 和两条队列别名，避免 Writer 为获得类型而包含完整 BookThread。`Runtime.cpp` 只实现轻量 RunControl，`Service.cpp` 装配服务，`main.cpp` 加载配置并调用 RunService。私有协作声明位于 `src/detail/`，读取器和故障夹具只进入 `tests/`。性能实验的 `benchmarks/` 和 UI 路径随对应版本创建；运行输出默认位于 `data_out/`。
+公共声明位于 `include/`，实现位于 `src/`；`include/PipelineTypes.h` 定义 `BookMode` 和两条队列别名，避免 Writer 为获得类型而包含完整 BookThread。`Runtime.cpp` 只实现轻量 RunControl，`Service.cpp` 装配服务，`main.cpp` 加载配置并调用 RunService。私有协作声明位于 `src/detail/`，读取器和故障夹具只进入 `tests/`。UI 已由 V4 建立独立 npm 工程；性能实验的 `benchmarks/` 随 V5 创建；运行输出默认位于 `data_out/`。
 
 ### 2.4 模块之间的依赖、协作关系及设计理由
 
@@ -102,7 +102,7 @@ using RecordQueue = qlib::single_queue<qlib::record>;
 }
 ```
 
-V3 入口创建两条固定容量队列和三个业务阶段对象，保证这些对象活到所有线程 `join()` 之后。Feed 是 FeedQueue 唯一生产者，Book 是其唯一消费者；Book 同时是 RecordQueue 唯一生产者，Writer 是唯一消费者。各阶段借用队列，不负责销毁它。V4 再加入独立的指标发布阶段。
+当前入口创建两条固定容量队列、三个业务阶段及独立 Metrics 阶段，保证这些对象活到全部四个工作线程 `join()` 之后。Feed 是 FeedQueue 唯一生产者，Book 是其唯一消费者；Book 同时是 RecordQueue 唯一生产者，Writer 是唯一消费者。各阶段借用队列，不负责销毁它。Metrics 不访问队列内部，不改变上述 SPSC 的拥有关系。
 
 这种划分让网络和文件 I/O 不直接占住订单簿的操作线程，同时避免多个线程争抢同一订单簿的锁。代价是需要两个额外队列、记录副本和阶段间等待；文件写入跟不上时，背压会逐级传到接收阶段，仍不能保证外部 ZMQ 发布者的数据无丢失。
 
@@ -112,7 +112,7 @@ V3 入口创建两条固定容量队列和三个业务阶段对象，保证这�
 
 **快照流：** Book 使用 `steady_clock` 判断周期，为已知品种生成值拷贝。快照保存最近处理事件的时间；输出生成时间不能冒充该字段。忙碌后只生成当下快照并重新安排下一次到期，不在一个循环里无限补发历史到期次数。
 
-**停止与故障流：** 普通停止按 Feed → Book → Writer 的顺序请求停止并逐个等待完成；V4 接入 Metrics 后最后停止该阶段。Book、Writer 先观察停止，再确认输入为空并结束；任意阶段出现致命失败时，统一故障标志中止等待，所有线程停止，不再承诺完整排空。
+**停止与故障流：** 普通停止按 Feed → Book → Writer → Metrics 的顺序请求停止并逐个等待完成。Book、Writer 先观察停止，再确认输入为空并结束；任意阶段出现致命失败时，统一故障标志中止等待，所有线程停止，不再承诺完整排空。
 
 ### 2.6 技术模块的划分方案与理由
 
@@ -358,7 +358,7 @@ public:
 
 #### 4.1.3 模块整体协作
 
-**1. 类之间的调用与协作流程。** main 加载 Config 并调用 RunService；Service.cpp 创建 Metrics、RunControl、两队列及阶段对象，按 Writer、Book、Feed 启动。ZMQ 和文件资源由所属工作线程建立。`feed_connected` 表示连接配置完成，`writer_opened` 表示五个文件已打开，`service_control_ready` 表示主线程停止协调已启用；这些日志不表示网络订阅或行情接纳完成。主线程观察用户停止标志和 Failed 状态。
+**1. 类之间的调用与协作流程。** main 加载 Config 并调用 RunService；Service.cpp 创建 Metrics、RunControl、两队列及阶段对象，按 Metrics、Writer、Book、Feed 启动。ZMQ 和文件资源由所属工作线程建立。`metrics_bound` 表示指标 PUB 已实际绑定并报告端点，`feed_connected` 表示行情连接配置完成，`writer_opened` 表示五个文件已打开，`service_control_ready` 表示主线程停止协调已启用；这些日志不表示网络订阅或行情接纳完成。主线程观察用户停止标志和 Failed 状态。
 
 **2. 模块完整使用示例。** 以下示例只展示运行控制接口，具体队列和阶段组装在 RunService 内完成：
 
@@ -376,9 +376,9 @@ int main() {
 
 正常停止时，主线程先 request_stop Feed 并 join，再对 Book、Writer 依次进行相同操作，最后停止 Metrics。若此时任何阶段 Failed，工作循环的队列等待必须能退出；主线程切换为对全部已启动线程请求停止并 join，报告失败而不是宣布正常保存。线程创建中途失败也要停止并等待已经创建的线程，不依赖对象析构顺序碰巧解决。
 
-V3 没有创建 Metrics 发布线程。Service.cpp 在第一条线程启动前安装清理守卫；阶段包装器捕获异常，记录首错并发布完成位。主线程每 10ms 检查完成位与 Failed，全部 join 后才读取 Stage/Error。私有测试 hooks 只用于启动边界、成功追加观察和协调时机，正式 RunService 始终传入空 hooks。
+V4 已将 Metrics 纳入同一份 Service.cpp 的四阶段数组、完成位、故障取消和显式 join。Service.cpp 在第一条线程启动前安装清理守卫；阶段包装器捕获异常，记录首错并发布完成位。主线程每 10ms 检查完成位与 Failed，全部 join 后才读取 Stage/Error。私有测试 hooks 只用于启动边界、成功追加观察和协调时机，正式 RunService 始终传入空 hooks。
 
-Linux 信号守卫在启动前屏蔽 SIGINT/SIGTERM，工作线程及其创建的后台线程继承屏蔽。三阶段启动后仅协调主线程解除屏蔽，处理器只设置本线程的 `volatile sig_atomic_t` 标志。全部阶段结束后恢复原 mask 和处理器；显式恢复错误使运行返回非零。重复停止请求不改变有序排空规则，系统调用或文件 I/O 不提供硬实时停止保证。
+Linux 信号守卫在启动前屏蔽 SIGINT/SIGTERM，工作线程及其创建的后台线程继承屏蔽。四阶段启动后仅协调主线程解除屏蔽，处理器只设置本线程的 `volatile sig_atomic_t` 标志。全部阶段结束后恢复原 mask 和处理器；显式恢复错误使运行返回非零。重复停止请求不改变有序排空规则，系统调用或文件 I/O 不提供硬实时停止保证。
 
 **3. 模块级设计约束、不变量与风险。** 信号处理函数只设置经过目标平台验证的停止标志，不调用日志、分配或 join；主线程完成实际停止。队列销毁必须晚于所有使用者结束。普通停止不等于全部线程同时 request_stop；致命失败也不能继续等待绝不会到来的队列空间。对不可中断的系统调用没有硬性停止时限承诺，外部看门狗或强杀不在正常排空范围。
 
@@ -394,7 +394,7 @@ Linux 信号守卫在启动前屏蔽 SIGINT/SIGTERM，工作线程及其创建�
 
 **4. 内部类与组件的划分及其理由。** 仅保留一个工作类 `FeedThread`。解码函数及其结果类型放在 `Protocol.h/.cpp`，因为它们不需要对象生命周期或独立线程，不额外建立“解析管理器”。`FeedQueue` 是在 `PipelineTypes.h` 统一定义的 `qlib::single_queue<qlib::feed_event>` 别名，`BookMode` 也在该处定义；队列由入口拥有，接入模块只借用生产端角色。`RunControl` 来自 `Runtime.h`，不在本模块重复定义。
 
-**5. 模块对外接口。** 对外提供 `FeedThread` 的构造与 `Run()`，供测试和其他组件使用的协议入口如下；这些是 qbook 的设计声明，不是已存在实现：
+**5. 模块对外接口。** 对外提供 `FeedThread` 的构造与 `Run()`，供测试和其他组件使用的协议入口如下；这些接口已在 V2 实现，以下列出其公共边界：
 
 ```cpp
 namespace qbook {
@@ -1028,6 +1028,8 @@ writer.Close();  // 前两行已成一批；最后一行必须在这里保存。
 
 **4. 内部类与组件的划分及其理由。** `Metric` 提供单个整数的更新和读取；`Metrics` 用有名字的成员表达指标口径和写入归属；`MetricsThread` 管理周期发布。将计时放在 Book 的事件处理边界，将发布留在监控线程，避免把网络操作塞入每次业务更新。无状态的 `SnapshotMetrics()` 负责字段映射，方便对照文件与 UI 协议测试。
 
+基础 `Metric`、`Metrics` 和 `SnapshotMetrics` 的声明保留在 `include/Threads/MetricsThread.h`，实现移到 `src/Metrics.cpp` 并继续只编入 `qbook_support`。网络类实现在 `src/Threads/MetricsThread.cpp`，进入随 PIPELINE 开关建立的 `qbook_metrics`；公共头仅前置声明 ZMQ socket，不把 ZMQ、Arrow 或 Node 引入支持库。
+
 **5. 模块对外接口。** 各阶段借用 `Metrics&` 更新自己的单元，监控借用 `const Metrics&` 读取；外部只接收普通数据 `qlib::metrics`。`Metric` 中的 `std::atomic` 和内存对齐不属于传输格式，不能直接发送整个 `Metrics` 对象。
 
 **6. 模块与其他模块的关系。** 配置提供指标端点和采样周期；Feed、Book、Writer 分别是对应成员的唯一写者；指标线程是观察者；UI 服务是外部订阅者。所有阶段和观察线程结束后才能销毁 `Metrics`。
@@ -1157,6 +1159,8 @@ private:
 
 本机 ABI profile 下 `qlib::metrics` 是 136 字节，等于一个 `int64_t ts_ns` 加 16 个 `uint64_t`。发送普通记录副本，不发送原子对象；编译时检查字段偏移和 `sizeof`，并用 golden fixture 与 UI 解码对照。接收端只接受配置相同的协议版本，单纯长度相同不能证明兼容。
 
+实际发布使用 cppzmq 4.10.0 的 `send(const_buffer, dontwait)`，返回前复制 136 字节；内部 `src/detail/MetricsSend.h` 仅将空 optional 分类为暂不可发送，异常长度抛错，其他 socket 异常保留错误码。Run 只识别 EINTR 并跳过当轮，其余异常交给阶段包装器；暂不可发送诊断每次运行最多一次。时间转换和 steady deadline 加法使用受检算术。`src/detail/MetricsLayout.h` 集中断言 17 个字段的类型、偏移、大小与小端布局，供发布实现和固定样本工具共用。
+
 **9. 类的关键算法与行为流程。** 绑定完成后建立下一次采样时刻；到期读取并发送一个样本，再安排下一次触发。处理或调度延迟超过周期时只发布当前样本，不循环补发一串已经过时的历史样本。等待可按不超过 100ms 的内部检查片段分段，从而检查普通停止和失败状态；实际线程退出还受调度影响。
 
 **10. 类的技术选型、替代方案与设计取舍。** 独立 ZMQ PUB 与参考服务保持接近，方便界面和其他观察程序共用数据。相比可靠消息日志，它允许丢掉中间样本，换取观察端不会通过积压拖慢业务；相比每个 HTTP 请求重新读取业务对象，它保持业务所有权清晰。网络实现本身可能有内部锁，因此不能据此宣传整个监控链路“完全无锁”。
@@ -1206,9 +1210,9 @@ worker.join();
 
 **2. 模块职责、边界及其理由。** Node 服务把 ZMQ 指标转为浏览器可接收的 SSE，浏览器负责近期曲线和显示。SSE（Server-Sent Events）是服务器持续向浏览器发送文本事件的 HTTP 通道；这里只需单向指标，因此不引入双向 WebSocket。UI 不直接访问订单簿、读取内部队列或判断市场状态正确性。
 
-**3. 模块核心设计思路。** 沿用参考项目的 Next.js、React、TypeScript 和 `zeromq` 服务端桥接。每个页面连接有一个订阅对象，订阅端仅关注近期指标；浏览器用累计计数的差值估计每秒速率，用累计抽样耗时差值除以样本差值计算均值。实际版本和安装命令随锁文件固定，不把参考项目依赖版本描述成已经在 qbook 验证。
+**3. 模块核心设计思路。** 当前 UI 使用 Next.js App Router、React、TypeScript 和 `zeromq` 服务端桥接。每个页面连接有一个订阅对象，订阅端仅关注近期指标；浏览器用累计计数的差值估计每秒速率，用累计抽样耗时差值除以样本差值计算均值。实际依赖由 `ui/package.json` 与唯一 `ui/package-lock.json` 固定，当前版本及构建边界见 §5.4。
 
-**4. 内部类与组件的划分及其理由。** `ui/lib/metrics.ts` 负责准确解码和字段类型，`SlidingRate` 负责一个数值流的窗口累计，`app/api/metrics/route.ts` 负责资源生命周期与 SSE，`app/page.tsx` 负责页面状态。前端是函数和组件组织，不为了对应 C++ 形式强行增加工作类。
+**4. 内部类与组件的划分及其理由。** `ui/lib/metrics.ts` 负责准确解码和字段类型，`ui/lib/rate.ts` 的 `SlidingRate` 负责窗口累计，`ui/lib/monitor.ts` 负责基线、速率和状态模型。`ui/lib/server/metrics-stream.ts` 的 `createMetricsResponse` 负责请求级 SUB、SSE 背压及清理；`ui/app/api/metrics/route.ts` 只导出 Node runtime、禁缓存配置和 GET。`ui/app/page.tsx` 组织显示与挂载清理，`ui/components/MetricTrend.tsx` 绘制 SVG 趋势。前端是函数和组件组织，不为了对应 C++ 形式强行增加工作类。
 
 **5. 模块对外接口。** 浏览器请求只读 `GET /api/metrics` 获取 SSE；桥接进程订阅配置的指标端点，默认本机 `tcp://127.0.0.1:5556`。UI 服务与 qbook 的 C++ 进程分别运行，UI 的端点配置方式在 `ui/README.md` 公布；这不为 C++ 服务增加新的环境变量覆盖机制。
 
@@ -1241,7 +1245,7 @@ worker.join();
 
 **7. 函数及其设计理由。** `decode` 只做协议转换；`GET` 管理订阅与响应；`closeOnce` 集中清理；浏览器侧 `parseSample` 负责恢复准确数值与校验 DTO。解析失败不产生全零样本。
 
-**8. 函数详细规格。** 以下是拟定 TypeScript 边界，具体字段完整列于解码映射表。
+**8. 函数详细规格。** 以下是已实现的 TypeScript 边界，具体字段完整列于解码映射表。
 
 ```typescript
 type MetricsDto = { [K in MetricField]: string };
@@ -1267,9 +1271,13 @@ export declare function GET(request: NextRequest): Promise<Response>;
 | `decode` | 受支持的小端 ABI 的完整 136 字节单帧，返回全部字段的字符串 DTO。 | 不修改输入；长度错误抛解析错误，不补零。不能仅凭长度检测所有同长度错误协议，兼容版本还需部署检查。 | 固定 17 字段，O(1)；纯同步函数，不持有订阅状态。 |
 | `parseSample` | 来自 SSE 的未知 JSON 值，返回 bigint 样本。 | 检查全部字段、十进制格式和 int64/uint64 范围；错误样本丢弃并显示诊断，不更新最近有效样本。 | O(1) 字段数；不对累计量做浮点转换。 |
 | `GET` | 有效 Next.js 请求；Node 运行时支持 zeromq，协议配置已固定。 | 返回 `text/event-stream`，发出连接说明，随后发指标 JSON；响应禁止缓存和代理改写。 | 每客户端独立资源，适合本版少量本机观察者。大量客户端的共享订阅属于后续扩展。 |
-| `closeOnce` | 请求取消、流取消、意外订阅错误或正常完成时触发。 | 只关闭一次订阅和流，移除相关监听；意外错误需服务端诊断。 | 关闭导致的预期迭代结束可忽略，不能把所有异常无条件吞掉。 |
+| `closeOnce` | 请求取消、流取消、意外订阅错误、正常完成或进程停止时触发。 | 只关闭一次订阅和流，移除请求及进程停止回调；意外错误需服务端诊断。server-stop 使流失败，解除 HTTP 写入等待。 | 关闭导致的预期迭代结束可忽略，不能把所有异常无条件吞掉。 |
 
 解码测试必须使用 C++ 构造的固定指标样本，包含超过 `2^53` 的累计值和纳秒时间戳，核对每一字段。C++ 侧静态检查 `sizeof(qlib::metrics)` 及所用字段偏移；不符合当前布局就拒绝构建此协议路径，不在 JavaScript 中猜偏移。
+
+实现的响应流采用 `highWaterMark=1`，除一条已排队完整事件外仅保留一份 `latestPending`；不对 HTTP/内核缓冲承诺这一上界。`server-only` 标记保护服务器文件，`next.config.ts` 的 `serverExternalPackages: ['zeromq']` 保留原生模块；只有单元测试配置将边界标记解析为空模块，真实桥接仍执行。请求 setup 错误由 GET 返回 503；已取消请求返回 499。所有关闭路径关闭 socket、移除 abort 监听和本请求的进程停止回调，接收任务立即安装拒绝处理；stream cancel 等待接收任务结束。
+
+模块级 `activeClosers` 仅保存请求的清理回调，不共享 SUB、接收任务或样本。首个请求安装一组 SIGINT/SIGTERM 监听，最后一个请求结束后卸载；Node 收到停止信号时遍历活动回调，各自进入 `server-stop` 清理，先关闭 SUB，再使 SSE 响应流失败，解除 Next 等待 HTTP 响应结束的阻塞。20 个独立请求只共用一组监听的单元检查、8 轮真实 HTTP 取消后订阅归零，以及 4 条活跃 SSE 下 SIGINT/SIGTERM 退出均已通过。该清理只影响观察服务，不向 C++ RunControl 广播失败。
 
 **9. 关键算法与行为流程。** 请求到达后创建并连接订阅，注册取消处理，再等待指标帧。有效帧被解码；若响应有下游需求就发送，否则只覆盖 `latestPending`，有需求时发送其最新值。`conflate` 只能限制 ZMQ 层积压，不能替代 HTTP 响应流的背压处理。请求取消时关闭订阅，使等待迭代能结束。建立响应前失败可以返回明确 HTTP 错误；建立后意外失败需关闭流并让页面显示连接错误，不伪造零值。
 
@@ -1353,7 +1361,7 @@ export declare class SlidingRate {
 
 **6. 数据容器、索引的技术选型与取舍。** 曲线按 `arrivalMs < now-60000` 淘汰，不采用“600 个样本就等于一分钟”的假设。页面同时设置显示点数上限，例如 2000 点；高频输入超过上限时只对绘图点降采样，并标示范围，累计量和速率计算仍处理每个有效样本。图上数据点减少不改变计数或伪造历史。
 
-**7. 函数及其设计理由。** 将 `onSample`、`resetBaseline`、`pruneHistory` 和 `evaluateConnection` 分离为小函数，便于使用虚拟到达时间验证。曲线组件只绘制传入数据，不自行读取网络或决定重启逻辑。
+**7. 函数及其设计理由。** `ui/lib/monitor.ts` 的 `createMonitorModel` 返回 `onSample`、`resetBaseline`、`pruneHistory`、`evaluateConnection` 等函数，并提供 `onOpen`、`onError`、`onInvalidSample` 和 `getView`；配置由 `parseMonitorConfig` 独立校验。数值与连接逻辑可用虚拟到达时间验证。曲线组件只绘制传入数据，不自行读取网络或决定重启逻辑。
 
 **8. 函数详细规格。**
 
@@ -1447,27 +1455,32 @@ declare function evaluateConnection(nowMs: number): ConnectionState;
 
 qlib 当前为头文件接口库，可使用 `add_subdirectory(third_party/qlib)` 后链接 **`qlib::qlib`**。当前源码没有提供可直接假定存在的安装导出包，不写成 `find_package(qlib CONFIG)` 已经可用。作为子目录时按需关闭其 `QLIB_BUILD_TESTS`，qbook 自己的业务验证仍由本项目注册。
 
-| 构建部分 | 拟定方式与验证 |
+| 构建部分 | 当前接入与验证 |
 |---|---|
 | V0 支持库 | `qbook_support` 包含 Config、RunControl 与指标基础，独立于网络和文件服务。`qbook_tests` 通过 Catch2 v3 和 CTest 注册；实际结果见本地 `docs/releases/V0.md`（不上传 GitHub）。 |
 | V1 核心 | `qbook_core` 仅包含 `src/Orderbook.cpp`，公开 include、C++23 与 `qlib::qlib`；独立于支持库、日志、网络和文件。 |
 | V2 协议与阶段 | `qbook_protocol` 包含纯协议实现，仅公开 qlib；`qbook_pipeline` 包含 Feed/Book，公开链接 core/support/protocol、`cppzmq` 和 `Threads::Threads`，日志使用私有 `qbook_logging`。 |
 | V2 通信依赖 | 官方 libzmq 4.3.5 与 cppzmq 4.10.0 完整源码保留于 third_party；各有 SHA-256 清单和许可证。通过真实 `cppzmq` 接口目标链接 `libzmq` 动态库，不在配置时下载。 |
 | V3 持久化 | `qbook_storage` 包含 ParquetWriter 和排他文件适配；`qbook_writer` 包含 WriterThread 和运行目录。两个目标由 `QBOOK_BUILD_PERSISTENCE` 控制，独立于 ZMQ。 |
-| V3 正式服务 | `qbook_service` 包含 Service.cpp，链接真实 pipeline/writer；`qbook` 包含 main.cpp。只有同时启用 PIPELINE、PERSISTENCE、SERVICE 才建立服务。 |
-| V3 Arrow/Parquet | Apache 官方 Ubuntu 24.04 amd64 26.0.0-1 包提取到 `.deps/arrow-26.0.0/usr`；链接官方 `Arrow::arrow_shared`、`Parquet::parquet_shared`。包和许可证由 JSON 锁文件及安装脚本管理。 |
+| V3/V4 正式服务 | `qbook_service` 包含 Service.cpp，链接真实 pipeline/writer/metrics；`qbook` 包含 main.cpp。只有同时显式启用 PIPELINE、PERSISTENCE、SERVICE 才建立四阶段服务。 |
+| V4 指标发布 | `qbook_metrics` 只包含 `src/Threads/MetricsThread.cpp`，公开链接 support，私有链接 cppzmq、Threads 与日志；随 PIPELINE 建立。基础 `src/Metrics.cpp` 留在 support。 |
+| Arrow/Parquet 容器接入 | 当前使用容器 `/usr` 的 Ubuntu 24.04 amd64 26.0.0-1 官方包，保持 26.0.0 EXACT；链接真实 `Arrow::arrow_shared`、`Parquet::parquet_shared` 共享目标。历史包锁及恢复脚本保留，不是当前构建步骤，不恢复 `.deps`。 |
 | 配置与日志 | 初始采用 fkYAML、spdlog 头文件依赖，保留版本来源与许可证，不假定容器里已经安装。 |
-| 功能测试 | 固定 Catch2 v3 与 CTest；unit 69、allocation 6、pipeline 40、storage 18、service 21，共 154 项。分配替换只链接 allocation；文件读取和故障流只进入测试目标。服务测试驱动复用真实服务，正式 qbook 不接入测试配置。 |
+| 功能测试 | 固定 Catch2 v3 与 CTest；unit 69、allocation 6、pipeline 40、metrics 11、storage 18、service 23，共 167 项。分配替换只链接 allocation；文件读取和故障流只进入测试目标。服务测试驱动复用真实服务，正式 qbook 不接入测试配置。 |
 | 性能实验 | 独立 benchmark 目标，默认不作为普通功能测试门槛；先采用最小测量程序，是否引入额外框架由性能版本的实验需求决定。 |
-| UI | 沿用参考项目 Next.js 15 / React 19 的起点，Node、包补丁版本和平台依赖由实际接入锁定；不能声称上传源码已在新环境完成安装验证。 |
+| UI | 独立 npm 工程 qbook-ui，唯一 package-lock；Node 24.22.1 LTS/npm 11.19.1、Next 16.4.3、React/React DOM 19.3.1、TypeScript 7.0.2、zeromq 6.8.0、Vitest 5.0.5/Vite 8.3.5、Playwright 1.64.1。UI 不进入 C++ 依赖图。 |
 
-`BUILD_TESTING` 控制本项目测试。`QBOOK_BUILD_PIPELINE` 默认 ON，控制通信依赖、流水线库及其测试；OFF 时不查找或构建 ZMQ，保留支持库、核心库和纯协议测试。`QBOOK_BUILD_PERSISTENCE`、`QBOOK_BUILD_SERVICE` 与 `QBOOK_BUILD_BENCHMARKS` 默认 OFF。
+`BUILD_TESTING` 控制本项目测试。`QBOOK_BUILD_PIPELINE` 默认 ON，控制通信依赖、流水线/指标发布库及其测试；OFF 时不查找或构建 ZMQ，保留支持库、核心库和纯协议测试。`QBOOK_BUILD_PERSISTENCE`、`QBOOK_BUILD_SERVICE` 与 `QBOOK_BUILD_BENCHMARKS` 默认 OFF。
 
 SERVICE 为 ON 而 PIPELINE 或 PERSISTENCE 为 OFF 时明确拒绝配置；benchmark 为 ON 仍拒绝配置。`BUILD_TESTING=OFF` 按能力开关构建生产库和正式服务，不引入 Catch2、发布者、收集器、读取器、测试驱动或分配替换。libzmq 的测试、文档、性能工具、draft、CURVE、WebSocket 和可选第三方后端关闭。
-持久化启用时才查找 Arrow/Parquet 26.0.0 EXACT。安装脚本按锁文件下载或读取缓存，校验哈希、提取包并保留许可证；CMake 配置和构建不联网。运行库通过本地 RPATH 解析，移动仓库后需重新配置并链接。固定包仍依赖 Ubuntu 基础运行库，不承诺完整系统镜像复现。
+持久化启用时才查找 Arrow/Parquet 26.0.0 EXACT；当前显式 CMake 包路径为 `/usr/lib/x86_64-linux-gnu/cmake/Arrow` 和 `/usr/lib/x86_64-linux-gnu/cmake/Parquet`，共享库由系统路径解析。CMake 不自动选择项目 `.deps`，不注入历史绝对 RPATH 或修改 `LD_LIBRARY_PATH`；配置和构建不联网。历史安装脚本与 JSON 包锁继续保留。开发容器仍使用 `cpp-dev:latest`，没有仓库内 Dockerfile 或固定 digest，不能单凭该标签复现整个环境。Node/npm 本轮由校验官方 SHA-256 的临时工具目录提供，后续容器需自行固定提供，见 UI README。
 qlib 按用户 2026-10-20 授权，以 `/mnt/d/Desktop/unsw/qlib` 的完整源码副本和
 `third_party/qlib.sha256` 固定内容版本，原目录只读；当前无 Git 提交可记录。
 依赖版本、许可证和构建接入见 [README](../README.md)。
+
+本轮 Node 经官方 SHA-256 核对后安装到容器 `/opt/node-v24.22.1-linux-x64`，由 `/usr/local/bin/node`、`npm`、`npx`、`corepack` 链接提供命令。`build/v4-tools` 仅为可清理的下载/探测目录；删除该目录不影响已安装 Node。`cpp-dev:latest` 尚无仓库内 Dockerfile 或固定 digest，容器内安装不能单独复现完整镜像环境。
+
+本轮在现有容器重跑前置基线 154/154，通过后加入 V4，完整 CTest 167/167、核心隔离 75/75 与无测试生产构建均通过；实际生成的编译图确认核心不配置 ZMQ、生产不引入 Catch2 或测试工具。最终 CTest 为 167/167（4.75 秒），UI 类型检查、153/153 单元（26.89 秒）通过；100 ms、2000 ms 分别生产构建，Chromium 156.0.8078.4 真实验收各 3/3（约 1.1、1.7 分钟），包括原生模块加载、连接状态、观察端关闭后继续业务及正常关闭文件读回。完整测试配置生成 `build/debug/tests/runtime-paths.json`，键为 `qbook`、`serviceTestDriver`、`fixturePublisher`、`fixtureGenerator`、`parquetVerify`、`metricsFixtures`；前五项为本轮目标文件绝对路径，最后一项为指标 fixture 目录。编排必须在构建成功后使用这些真实路径。
 
 V3 实测结果为完整 Debug 154/154、核心分支 75/75、Release 文件与服务 39/39 通过。关闭测试的完整生产构建不含 Catch2 或测试目标；SERVICE 缺少任一前置开关均明确拒绝配置。未逐点注入 Arrow 内部分配失败、fd 移交内部失败、系统 close 与信号系统调用错误；相关返回值、状态与固定库资源契约经代码审阅。重复信号测试连续发送同一信号，可能发生合并，其证据不等于确定覆盖收尾期间的第二次信号。实际命令和限制见本地 V3 记录。
 
@@ -1531,7 +1544,7 @@ V2 用有限 XPUB 发布者和有上限的 `RecordCollector` 验证内存记录�
 
 重点验收正常与失败的两种关闭路径。正常停止期间输入队列和记录队列都应有待处理项，验证 Feed 停止后 Book 仍能排空、Book 结束后 Writer 才排空并关闭；以成功入 FeedQueue 的记录数为基准核对文件。
 
-失败场景在 RecordQueue 已满或接近满时注入 Writer 写入错误，确认 Book 的 Forward 能观察 Failed 而退出，Feed 的重试也能退出，主线程完成所有 join 并返回非零。V3 同时检查线程创建部分成功后失败，以及正常停止中的尾批与 Close 写错误。指标端口绑定失败随 V4 发布阶段接入时验证。
+失败场景在 RecordQueue 已满或接近满时注入 Writer 写入错误，确认 Book 的 Forward 能观察 Failed 而退出，Feed 的重试也能退出，主线程完成所有 join 并返回非零。V3 同时检查线程创建部分成功后失败，以及正常停止中的尾批与 Close 写错误。V4 已补真实指标端口占用、四个部分启动边界及 Metrics 失败解除已满队列/阻塞 Writer 的回归；正式服务与私有驱动结果分开记录。
 
 业务与日志不能只靠“没有挂起几秒”验收。测试要明确完成条件、故障已被报告、线程都已结束及输出完整性结论；限时防挂起可以作为测试保护，但不是产品硬实时停止承诺。
 
@@ -1559,9 +1572,9 @@ V2 用有限 XPUB 发布者和有上限的 `RecordCollector` 验证内存记录�
 | SP-02 对应 OI-02 | 本规格已选本地测试协议：order ID正数、trade侧0缺失、event_ns0未知、seq非负、正价、Unix纳秒及 qlib 倍率。首个真实源和品种映射尚未确定。 | 真实接入前由项目负责人确认上游是否能转换到此契约，不能声称已验证实际市场。 |
 | SP-03 对应 OI-03 | 本版采用需求中的同价改单保序、超额扣减移除、L2成交只记录。 | 若目标市场规则不同，显式转换或修改需求，不能偷偷改变已有处理语义。 |
 | SP-04 对应 OI-04 | 性能验收机器、代表性负载和绝对目标未确定。 | 性能版本开始前确认；当前只承诺方法与证据完整，不承诺某个纳秒数或每秒条数。 |
-| SP-05 对应 OI-05 | 本规格选择 UI 初始默认：采样100ms时为1秒速率窗口、60秒真实到达时间趋势、1500ms样本停滞阈值、500ms检查；其他周期按4.6.2.3同步UI配置并调整窗口与阈值；首轮用记录版本的桌面Chromium。 | 这些是设计默认，不是已通过界面验收；需要在UI接入时锁定版本并验证。 |
+| SP-05 对应 OI-05 | 本规格选择 UI 初始默认：采样100ms时为1秒速率窗口、60秒真实到达时间趋势、1500ms样本停滞阈值、500ms检查；其他周期按4.6.2.3同步UI配置并调整窗口与阈值；首轮用记录版本的桌面Chromium。 | 虚拟时间及组件测试已通过，Playwright 1.64.1 / Chromium 156.0.8078.4 的 100 ms 与 2000 ms 两组真实验收各 3/3 通过。2000 ms 配对窗口为 4000 ms、停滞阈值为 6000 ms；其他浏览器及长期负载未验收。 |
 | SP-06 对应 OI-06 | 本版保留上游seq，不额外增加跨文件本地总序号。 | 若后续需要严格回放所有类型的统一先后顺序，必须修改外部数据和验收，不承诺现有文件天然提供。 |
-| SP-07 构建依赖 | V0 已固定 fkYAML、spdlog、Catch2；V2 已固定 libzmq 4.3.5、cppzmq 4.10.0 完整源码；V3 已固定 Arrow/Parquet 26.0.0-1 及其 Ubuntu 包依赖。UI 包留待 V4。 | 通信和文件库分别随对应开关接入；UI 依赖只影响 V4 目标。 |
+| SP-07 构建依赖 | V0 已固定 fkYAML、spdlog、Catch2；V2 已固定 libzmq 4.3.5、cppzmq 4.10.0 完整源码；V3 已固定 Arrow/Parquet 26.0.0-1 及其 Ubuntu 包依赖。V4 UI 直接版本和 npm 锁已固定，详见 §5.4。 | 通信和文件库分别随对应开关接入；UI 依赖只影响 V4 目标。 |
 
 上述设计决策与实际验证状态分别记录。后续实施应同步已解决问题和相关文档；改变产品范围时保留明确变更记录，不改写需求文件的历史记录。
 
@@ -1574,3 +1587,4 @@ V2 用有限 XPUB 发布者和有上限的 `RecordCollector` 验证内存记录�
 | 0.3 | 2026-10-20 | Codex | 同步 V1 已实现的核心与两个测试目标、只读观察器、固定饱和内存估计、成员移动检查及专用分配失败机制；业务语义与 ABI 保持原约定。 |
 | 0.4 | 2026-10-22 | Codex | 同步 V2 已实现的协议与 Feed/Book、诊断和算术细化、停止顺序、测试装配及固定通信依赖；115/115 测试及两个构建分支通过，业务契约与 ABI 不变。 |
 | 0.5 | 2026-10-23 | Codex | 同步 V3 五类文件格式、Writer、Service.cpp、信号与资源生命周期、固定 Arrow/Parquet 依赖和构建分支；Debug 154/154、核心 75/75、Release 文件/服务 39/39 通过，业务契约与 ABI 不变。 |
+| 0.6 | 2026-10-26 | Codex | 同步 V4 实际指标库与四阶段服务、内部布局/发送分类、Node/SSE 与页面模块、锁定 UI 版本、runtime-paths 清单，以及容器 `/usr` Arrow 接入；C++ 167/167、核心 75/75、无测试生产构建和 UI 153/153、类型检查通过；100/2000 ms 独立生产构建，Chromium 156.0.8078.4 两组各 3/3 通过，V4 验收完成，业务与 ABI 契约不变。 |

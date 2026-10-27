@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.28)
-project(qbook VERSION 0.3.0 LANGUAGES CXX)
+project(qbook VERSION 0.4.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -50,7 +50,7 @@ target_link_libraries(qbook_logging INTERFACE Threads::Threads)
 add_library(qbook_support STATIC
   src/Config.cpp
   src/Runtime.cpp
-  src/Threads/MetricsThread.cpp)
+  src/Metrics.cpp)
 target_include_directories(qbook_support PUBLIC include)
 target_link_libraries(qbook_support PUBLIC qlib::qlib PRIVATE qbook_yaml qbook_logging)
 target_compile_options(qbook_support PRIVATE -Wall -Wextra -Wpedantic)
@@ -96,6 +96,11 @@ if(QBOOK_BUILD_PIPELINE)
   target_link_libraries(qbook_pipeline PUBLIC qbook_core qbook_support qbook_protocol
     cppzmq Threads::Threads PRIVATE qbook_logging)
   target_compile_options(qbook_pipeline PRIVATE -Wall -Wextra -Wpedantic)
+  add_library(qbook_metrics STATIC src/Threads/MetricsThread.cpp)
+  target_include_directories(qbook_metrics PUBLIC include PRIVATE src)
+  target_link_libraries(qbook_metrics PUBLIC qbook_support
+    PRIVATE cppzmq Threads::Threads qbook_logging)
+  target_compile_options(qbook_metrics PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
 if(QBOOK_BUILD_PERSISTENCE)
@@ -116,7 +121,7 @@ endif()
 if(QBOOK_BUILD_SERVICE)
   add_library(qbook_service STATIC src/Service.cpp)
   target_include_directories(qbook_service PUBLIC include PRIVATE src)
-  target_link_libraries(qbook_service PUBLIC qbook_pipeline qbook_writer PRIVATE qbook_logging)
+  target_link_libraries(qbook_service PUBLIC qbook_pipeline qbook_writer qbook_metrics PRIVATE qbook_logging)
   target_compile_options(qbook_service PRIVATE -Wall -Wextra -Wpedantic)
   add_executable(qbook src/main.cpp)
   target_link_libraries(qbook PRIVATE qbook_service qbook_logging)
@@ -157,12 +162,27 @@ if(BUILD_TESTING)
   catch_discover_tests(qbook_allocation_tests TEST_PREFIX "allocation::"
     PROPERTIES TIMEOUT 30)
 
+  add_executable(qbook_metrics_fixture_generator tests/metrics_fixture_generator.cpp)
+  target_include_directories(qbook_metrics_fixture_generator PRIVATE src tests)
+  target_link_libraries(qbook_metrics_fixture_generator PRIVATE qlib::qlib)
+  target_compile_options(qbook_metrics_fixture_generator PRIVATE -Wall -Wextra -Wpedantic)
+
   if(QBOOK_BUILD_PIPELINE)
     add_executable(qbook_pipeline_tests tests/feed_tests.cpp tests/book_thread_tests.cpp
       tests/pipeline_tests.cpp tests/support/FeedPublisher.cpp tests/support/RecordCollector.cpp)
     target_link_libraries(qbook_pipeline_tests PRIVATE qbook_pipeline qbook_logging Catch2::Catch2WithMain)
     target_compile_options(qbook_pipeline_tests PRIVATE -Wall -Wextra -Wpedantic)
     catch_discover_tests(qbook_pipeline_tests TEST_PREFIX "pipeline::" PROPERTIES TIMEOUT 30)
+    add_executable(qbook_metrics_tests tests/metrics_tests.cpp tests/metrics_integration_tests.cpp)
+    target_include_directories(qbook_metrics_tests PRIVATE src tests)
+    target_link_libraries(qbook_metrics_tests PRIVATE qbook_metrics cppzmq Catch2::Catch2WithMain)
+    target_compile_options(qbook_metrics_tests PRIVATE -Wall -Wextra -Wpedantic)
+    catch_discover_tests(qbook_metrics_tests TEST_PREFIX "metrics::" PROPERTIES TIMEOUT 20)
+
+    add_executable(qbook_monitoring_fixture_publisher tests/monitoring_fixture_publisher.cpp)
+    target_include_directories(qbook_monitoring_fixture_publisher PRIVATE include src tests)
+    target_link_libraries(qbook_monitoring_fixture_publisher PRIVATE qlib::qlib cppzmq Threads::Threads)
+    target_compile_options(qbook_monitoring_fixture_publisher PRIVATE -Wall -Wextra -Wpedantic)
   endif()
 
   if(QBOOK_BUILD_PERSISTENCE)
@@ -178,6 +198,9 @@ if(BUILD_TESTING)
       Catch2::Catch2WithMain)
     target_compile_options(qbook_storage_tests PRIVATE -Wall -Wextra -Wpedantic)
     catch_discover_tests(qbook_storage_tests TEST_PREFIX "storage::" PROPERTIES TIMEOUT 45)
+    add_executable(qbook_parquet_verify tests/parquet_verify.cpp)
+    target_link_libraries(qbook_parquet_verify PRIVATE qbook_storage_test_support)
+    target_compile_options(qbook_parquet_verify PRIVATE -Wall -Wextra -Wpedantic)
   endif()
 
   if(QBOOK_BUILD_SERVICE)
@@ -195,5 +218,8 @@ if(BUILD_TESTING)
     target_compile_options(qbook_service_tests PRIVATE -Wall -Wextra -Wpedantic)
     add_dependencies(qbook_service_tests qbook qbook_service_test_driver)
     catch_discover_tests(qbook_service_tests TEST_PREFIX "service::" PROPERTIES TIMEOUT 60)
+    # UI 编排读取本次构建的绝对路径，不猜测构建目录或使用历史可执行文件。
+    file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/tests/runtime-paths.json" CONTENT
+"{\n  \"qbook\": \"$<TARGET_FILE:qbook>\",\n  \"serviceTestDriver\": \"$<TARGET_FILE:qbook_service_test_driver>\",\n  \"fixturePublisher\": \"$<TARGET_FILE:qbook_monitoring_fixture_publisher>\",\n  \"fixtureGenerator\": \"$<TARGET_FILE:qbook_metrics_fixture_generator>\",\n  \"parquetVerify\": \"$<TARGET_FILE:qbook_parquet_verify>\",\n  \"metricsFixtures\": \"${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/metrics\"\n}\n")
   endif()
 endif()

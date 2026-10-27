@@ -16,7 +16,7 @@ struct ServiceHooks {
   std::function<void(const Metrics&)> coordinator_poll;
 };
 
-// 运行真实三阶段；可选回调只控制测试的启动边界和正常停止时机。
+// 运行真实四阶段；可选回调只控制测试的启动边界和正常停止时机。
 int RunServiceImpl(const Config& config, const ServiceHooks* hooks = nullptr);
 }  // namespace detail
 }  // namespace qbook

@@ -107,12 +107,12 @@ struct Stage {
   std::atomic<bool> done{false};
 };
 
-void RequestAll(const std::array<Stage*, 3>& stages) noexcept {
+void RequestAll(const std::array<Stage*, 4>& stages) noexcept {
   for (auto* stage : stages)
     if (stage->thread.joinable()) stage->thread.request_stop();
 }
 
-void StopAndJoin(Stage& target, const std::array<Stage*, 3>& stages,
+void StopAndJoin(Stage& target, const std::array<Stage*, 4>& stages,
                  const RunControl& control) {
   if (!target.thread.joinable()) return;
   target.thread.request_stop();
@@ -126,7 +126,7 @@ void StopAndJoin(Stage& target, const std::array<Stage*, 3>& stages,
 // 第一条线程创建前建立；异常展开时先发布失败，再结束所有借用者。
 class StageCleanup {
 public:
-  StageCleanup(RunControl& control, std::array<Stage*, 3> stages)
+  StageCleanup(RunControl& control, std::array<Stage*, 4> stages)
       : control_(control), stages_(stages) {}
   ~StageCleanup() noexcept {
     if (!armed_) return;
@@ -142,7 +142,7 @@ public:
   void Dismiss() noexcept { armed_ = false; }
 private:
   RunControl& control_;
-  std::array<Stage*, 3> stages_;
+  std::array<Stage*, 4> stages_;
   bool armed_ = true;
 };
 
@@ -196,18 +196,21 @@ int detail::RunServiceImpl(const Config& config, const ServiceHooks* hooks) {
     } else {
       writer = std::make_unique<WriterThread>(record_queue, config.out_dir, config.batch_rows);
     }
-    Stage writer_stage, book_stage, feed_stage;
-    const std::array stages{&feed_stage, &book_stage, &writer_stage};
+    MetricsThread monitor(config.metrics_endpoint, config.sample_period);
+    Stage metrics_stage, writer_stage, book_stage, feed_stage;
+    const std::array stages{&feed_stage, &book_stage, &writer_stage, &metrics_stage};
     StageCleanup cleanup(control, stages);
     try {
       spdlog::info("service_start mode={} feed={} feed_queue={}/{} record_queue={}/{} "
                    "snapshot_ms={} out={} batch_rows={} metrics_endpoint={} sample_ms={} "
-                   "metrics_publish=disabled",
+                   "metrics_publish=enabled",
                    config.l2 ? "L2" : "Mbo", config.feed_endpoint,
                    config.feed_queue_capacity, feed_queue.capacity(),
                    config.record_queue_capacity, record_queue.capacity(),
                    config.snapshot_period.count(), config.out_dir.string(), config.batch_rows,
                    config.metrics_endpoint, config.sample_period.count());
+      StartStage(metrics_stage, "metrics", control,
+          [&](std::stop_token stop) { monitor.Run(metrics, stop, control); }, hooks);
       StartStage(writer_stage, "writer", control,
           [&](std::stop_token stop) { writer->Run(metrics, stop, control); }, hooks);
       StartStage(book_stage, "book", control,
@@ -231,6 +234,7 @@ int detail::RunServiceImpl(const Config& config, const ServiceHooks* hooks) {
     StopAndJoin(feed_stage, stages, control);
     StopAndJoin(book_stage, stages, control);
     StopAndJoin(writer_stage, stages, control);
+    StopAndJoin(metrics_stage, stages, control);
     cleanup.Dismiss();
   } catch (...) {
     control.Fail("service", std::current_exception());
@@ -244,7 +248,7 @@ int detail::RunServiceImpl(const Config& config, const ServiceHooks* hooks) {
     return 1;
   }
   try {
-    spdlog::info("service_stopped 三阶段已结束，输出正常关闭");
+    spdlog::info("service_stopped 四阶段已结束，输出正常关闭");
     return 0;
   } catch (...) {
     return 1;

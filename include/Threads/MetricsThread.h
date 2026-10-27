@@ -1,13 +1,20 @@
 #pragma once
 
 #include <atomic>
+#include <chrono>
+#include <stop_token>
+#include <string>
 #include <cstdint>
 
 #include <qlib/common.h>
 
 static_assert(QLIB_CACHE_LINE == 64, "qbook 要求所有翻译单元使用 QLIB_CACHE_LINE=64");
 
+namespace zmq { class socket_t; }
+
 namespace qbook {
+class RunControl;
+namespace testing { class MetricsThreadInspector; }
 
 // 单个非负指标由唯一写者更新，任意读者可并发观察。
 // 所有翻译单元须使用一致的 QLIB_CACHE_LINE；销毁前须结束所有访问。
@@ -50,5 +57,22 @@ struct Metrics {
 // 读取 16 项指标并返回独立值，sample_ns 为本机 Unix epoch 纳秒采样时间。
 // 调用期间 source 须存活；不同字段可以来自不同的更新时刻。
 qlib::metrics SnapshotMetrics(const Metrics& source, std::int64_t sample_ns) noexcept;
+
+// 只观察已有指标；Run 的调用线程独占创建、使用和释放 PUB/context。
+// 不承诺保留中间样本或停止时发送最终帧；致命错误由阶段包装器传播。
+class MetricsThread {
+public:
+  // 构造只保存并检查配置，不打开网络；周期须为可表示的正毫秒数。
+  MetricsThread(std::string endpoint, std::chrono::milliseconds sample_period);
+  // 同一实例仅由专属线程调用；借用对象须存活到返回，普通停止/失败均退出。
+  void Run(const Metrics& metrics, std::stop_token stop, const RunControl& control);
+
+private:
+  friend class testing::MetricsThreadInspector;
+  void Bind(zmq::socket_t& pub);
+  bool Publish(zmq::socket_t& pub, const Metrics& metrics);
+  std::string endpoint_;
+  std::chrono::milliseconds sample_period_;
+};
 
 }  // namespace qbook

@@ -13,6 +13,7 @@
 #include "support/WriterThreadInspector.h"
 
 #include <arrow/api.h>
+#include <zmq.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 
@@ -149,7 +150,8 @@ struct NetworkFiles {
   BookThread book;
   FeedPublisher publisher;
   std::optional<FeedThread> feed;
-  std::jthread writer_thread, book_thread, feed_thread, publisher_thread;
+  MetricsThread monitor{"tcp://127.0.0.1:*", 10ms};
+  std::jthread metrics_thread, writer_thread, book_thread, feed_thread, publisher_thread;
   ThreadCleanup cleanup;
   BookMode mode;
 
@@ -162,13 +164,14 @@ struct NetworkFiles {
             snapshots_after_goal.fetch_add(1, std::memory_order_release);
         }}, writer(WriterThreadInspector::Create(output, temporary.path(), 3, hooks)),
         book(input, output, selected, 10ms), publisher(std::move(plan), signals),
-        cleanup(control, {&publisher_thread, &feed_thread, &book_thread, &writer_thread}), mode(selected) {
+        cleanup(control, {&publisher_thread, &feed_thread, &book_thread, &writer_thread, &metrics_thread}), mode(selected) {
     observed.reserve(10000);
   }
 
   void Start() {
     auto endpoint = signals.bound_endpoint.get_future();
     auto subscribed = signals.subscribed.get_future();
+    metrics_thread = Launch("metrics", control, [&](auto stop) { monitor.Run(metrics, stop, control); });
     writer_thread = Launch("writer", control, [&](auto stop) { writer->Run(metrics, stop, control); });
     book_thread = Launch("book", control, [&](auto stop) { book.Run(metrics, stop, control); });
     publisher_thread = Launch("publisher", control, [&](auto stop) { publisher.Run(stop, control); });
@@ -189,6 +192,7 @@ struct NetworkFiles {
     StopJoin(publisher_thread);
     StopJoin(book_thread);
     StopJoin(writer_thread);
+    StopJoin(metrics_thread);
     cleanup.Dismiss();
     REQUIRE_FALSE(control.Failed());
     REQUIRE(input.empty());
@@ -226,8 +230,9 @@ struct ControlledFiles {
   BookThread book{input, output, BookMode::Mbo, 1h};
   std::vector<qlib::feed_event> offered, admitted;
   std::atomic<std::size_t> admitted_count{0};
-  std::atomic<bool> producer_done{false}, book_done{false}, writer_done{false};
-  std::jthread producer_thread, book_thread, writer_thread;
+  std::atomic<bool> producer_done{false}, book_done{false}, writer_done{false}, metrics_done{false};
+  MetricsThread monitor{"tcp://127.0.0.1:*", 10ms};
+  std::jthread producer_thread, book_thread, writer_thread, metrics_thread;
   ThreadCleanup cleanup;
 
   ControlledFiles(std::size_t count, bool pause, bool fail)
@@ -235,10 +240,12 @@ struct ControlledFiles {
           [&](const qlib::record&) {
             if (metrics.writer_orders.Read() == 1) probe->armed.store(true, std::memory_order_release);
           }}, writer(WriterThreadInspector::Create(output, temporary.path(), 2, hooks)),
-        offered(Many(count)), cleanup(control, {&producer_thread, &book_thread, &writer_thread}) {
+        offered(Many(count)), cleanup(control, {&producer_thread, &book_thread, &writer_thread, &metrics_thread}) {
     admitted.reserve(count);
   }
-  void Start() {
+  void Start(bool start_metrics = true) {
+    if (start_metrics) metrics_thread = Launch("metrics", control,
+        [&](auto stop) { monitor.Run(metrics, stop, control); }, &metrics_done);
     writer_thread = Launch("writer", control, [&](auto stop) { writer->Run(metrics, stop, control); }, &writer_done);
     book_thread = Launch("book", control, [&](auto stop) { book.Run(metrics, stop, control); }, &book_done);
     producer_thread = Launch("producer", control, [&](auto stop) {
@@ -266,11 +273,13 @@ struct ControlledFiles {
     probe->release.store(true, std::memory_order_release);
     StopJoin(book_thread);
     StopJoin(writer_thread);
+    StopJoin(metrics_thread);
     cleanup.Dismiss();
     REQUIRE_FALSE(control.Failed());
     REQUIRE(producer_done.load());
     REQUIRE(book_done.load());
     REQUIRE(writer_done.load());
+    REQUIRE(metrics_done.load());
     REQUIRE(input.empty());
     REQUIRE(output.empty());
     ExpectedRun expected;
@@ -290,6 +299,24 @@ TEST_CASE("network UC02 saves original quantities and repeated final snapshots",
   scenario.Start();
   scenario.Finish(6, 0, 3);
   CheckRaw(scenario.observed, events, true);
+  // 全部业务线程已结束：此处逐项核对阶段口径，不把运行中的逐字段观察当事务。
+  std::size_t bytes = 0;
+  for (const auto& event : events) bytes += EncodeFeedEvent(event).bytes().size();
+  REQUIRE(scenario.metrics.feed_messages.Read() == 6);
+  REQUIRE(scenario.metrics.feed_bytes.Read() == bytes);
+  REQUIRE(scenario.metrics.feed_orders.Read() == 5);
+  REQUIRE(scenario.metrics.feed_trades.Read() == 1);
+  REQUIRE(scenario.metrics.feed_levels.Read() == 0);
+  REQUIRE(scenario.metrics.feed_dropped.Read() == 0);
+  REQUIRE(scenario.metrics.book_events.Read() == 6);
+  REQUIRE(scenario.metrics.book_samples.Read() == 1);
+  REQUIRE(scenario.metrics.book_instruments.Read() == 1);
+  REQUIRE(scenario.metrics.book_resting_orders.Read() == 3);
+  REQUIRE(scenario.metrics.book_memory_bytes.Read() >= 3 * sizeof(qlib::order));
+  REQUIRE(scenario.metrics.writer_orders.Read() == 5);
+  REQUIRE(scenario.metrics.writer_trades.Read() == 1);
+  REQUIRE(scenario.metrics.writer_levels.Read() == 0);
+  // apply_ns 是实际采样耗时，无固定正下限；writer_books 已由 Finish 与读回逐条比较。
   const auto& final = LastBook(scenario.observed, 1);
   REQUIRE(final.event_ns == 106);
   REQUIRE(final.bid_qty[0] == 7);
@@ -356,6 +383,12 @@ TEST_CASE("network file chain rejects bad frames and retains business ignores ac
   REQUIRE(LastBook(scenario.observed, 3).bid_qty[0] == 3);
   REQUIRE(LastBook(scenario.observed, 40).bid_qty[0] == 0);
   REQUIRE(scenario.metrics.book_instruments.Read() == 40);
+  REQUIRE(scenario.metrics.book_events.Read() == events.size());
+  REQUIRE(scenario.metrics.feed_dropped.Read() == 3);
+  REQUIRE(scenario.metrics.feed_orders.Read() == events.size() - 1);
+  REQUIRE(scenario.metrics.feed_trades.Read() == 1);
+  REQUIRE(scenario.metrics.writer_orders.Read() == events.size() - 1);
+  REQUIRE(scenario.metrics.writer_trades.Read() == 1);
 }
 
 TEST_CASE("controlled admission ledger survives both queues full during normal stop", "[service][drain]") {
@@ -397,7 +430,7 @@ TEST_CASE("actual Writer batch failure releases upstream waits without claiming 
   scenario.probe->release.store(true);
   RunControl waiter;
   WaitUntil([&] { return scenario.writer_done.load() && scenario.book_done.load() &&
-      scenario.producer_done.load(); }, waiter, ScenarioDeadline());
+      scenario.producer_done.load() && scenario.metrics_done.load(); }, waiter, ScenarioDeadline());
   scenario.cleanup.Abort();
   REQUIRE(scenario.control.Failed());
   REQUIRE(std::string(scenario.control.Stage()) == "writer");
@@ -416,12 +449,14 @@ TEST_CASE("scenario timeout cancels a real blocked output and joins every stage"
   REQUIRE(scenario.producer_done.load());
   REQUIRE(scenario.book_done.load());
   REQUIRE(scenario.writer_done.load());
+  REQUIRE(scenario.metrics_done.load());
   REQUIRE(scenario.control.Failed());
   REQUIRE(WriterThreadInspector::Released(*scenario.writer));
 }
 
 TEST_CASE("real service implementation saves network UC02 before SIGINT and SIGTERM", "[service][process][network]") {
   const auto signal = GENERATE(SIGINT, SIGTERM);
+  const auto mode = GENERATE(std::string("goal"), std::string("monitor-goal"));
   const auto input = Uc02();
   RunControl control;
   PublisherSignals signals;
@@ -432,10 +467,16 @@ TEST_CASE("real service implementation saves network UC02 before SIGINT and SIGT
   thread = Launch("publisher", control, [&](auto stop) { publisher.Run(stop, control); });
   WaitUntil([&] { return endpoint.wait_for(0ms) == std::future_status::ready; }, control, ScenarioDeadline());
   ProcessHarness process(QBOOK_SERVICE_TEST_DRIVER,
-      {"goal", "4", "1", "1", "0", "1", "100", "7", "101", "6", "6", "0", std::to_string(signal)});
+      {mode, "4", "1", "1", "0", "1", "100", "7", "101", "6", "6", "0", std::to_string(signal)});
   process.WriteConfig("feed_endpoint: '" + endpoint.get() + "'\nsnapshot_period: 10\n"
-      "feed_queue_capacity: 2\nrecord_queue_capacity: 2\nbatch_rows: 3\n");
+      "feed_queue_capacity: 2\nrecord_queue_capacity: 2\nbatch_rows: 3\n"
+      "metrics_endpoint: 'tcp://127.0.0.1:*'\n");
   process.Start();
+  if (mode == "monitor-goal") {
+    process.WaitForOutput("driver_goal_reached", ScenarioDeadline());
+    process.WaitForOutput("records_added=6 records_snapshotted=6", ScenarioDeadline());
+    process.SendSignal(signal);
+  }
   const auto result = process.Wait(ScenarioDeadline());
   StopJoin(thread);
   cleanup.Dismiss();
@@ -446,6 +487,11 @@ TEST_CASE("real service implementation saves network UC02 before SIGINT and SIGT
   REQUIRE(result.term_signal == 0);
   REQUIRE(result.exit_code == 0);
   REQUIRE(result.output.find("driver_goal_reached") != std::string::npos);
+  if (mode == "monitor-goal") {
+    REQUIRE(result.output.find("driver_monitor_stopped") != std::string::npos);
+    const auto first = result.output.find("driver_goal_reached");
+    REQUIRE(result.output.find("driver_goal_reached", first + 1) == std::string::npos);
+  }
   const auto root = process.Directory() / "data_out";
   std::vector<std::filesystem::path> directories;
   for (const auto& entry : std::filesystem::directory_iterator(root)) directories.push_back(entry.path());
@@ -478,9 +524,11 @@ TEST_CASE("Writer failure releases real Feed and Book under simultaneous queue b
   FeedPublisher publisher(EncodePlan(Many(64)), signals);
   auto endpoint = signals.bound_endpoint.get_future();
   std::optional<FeedThread> feed;
-  std::atomic<bool> writer_done{false}, book_done{false}, feed_done{false};
-  std::jthread writer_thread, book_thread, feed_thread, publisher_thread;
-  ThreadCleanup cleanup(control, {&publisher_thread, &feed_thread, &book_thread, &writer_thread});
+  std::atomic<bool> writer_done{false}, book_done{false}, feed_done{false}, metrics_done{false};
+  MetricsThread monitor("tcp://127.0.0.1:*", 10ms);
+  std::jthread writer_thread, book_thread, feed_thread, publisher_thread, metrics_thread;
+  ThreadCleanup cleanup(control, {&publisher_thread, &feed_thread, &book_thread, &writer_thread, &metrics_thread});
+  metrics_thread = Launch("metrics", control, [&](auto stop) { monitor.Run(metrics, stop, control); }, &metrics_done);
   writer_thread = Launch("writer", control, [&](auto stop) { writer->Run(metrics, stop, control); }, &writer_done);
   book_thread = Launch("book", control, [&](auto stop) { book.Run(metrics, stop, control); }, &book_done);
   publisher_thread = Launch("publisher", control, [&](auto stop) { publisher.Run(stop, control); });
@@ -491,7 +539,7 @@ TEST_CASE("Writer failure releases real Feed and Book under simultaneous queue b
       metrics.feed_orders.Read() == 7; }, control, ScenarioDeadline());
   probe->release.store(true);
   RunControl waiter;
-  WaitUntil([&] { return writer_done.load() && book_done.load() && feed_done.load(); }, waiter, ScenarioDeadline());
+  WaitUntil([&] { return writer_done.load() && book_done.load() && feed_done.load() && metrics_done.load(); }, waiter, ScenarioDeadline());
   cleanup.Abort();
   REQUIRE(control.Failed());
   REQUIRE(std::string(control.Stage()) == "writer");
@@ -499,4 +547,33 @@ TEST_CASE("Writer failure releases real Feed and Book under simultaneous queue b
   REQUIRE(metrics.writer_orders.Read() == 1);
   REQUIRE(metrics.feed_dropped.Read() == 0);
   REQUIRE(WriterThreadInspector::Released(*writer));
+}
+
+TEST_CASE("real Metrics bind failure releases both backlogged queues and blocked Writer", "[service][metrics][failure]") {
+  ControlledFiles scenario(128, true, false);
+  scenario.Start(false);
+  scenario.Backlogged();
+  zmq::context_t context(1);
+  zmq::socket_t occupied(context, zmq::socket_type::pub);
+  occupied.set(zmq::sockopt::linger, 0);
+  occupied.bind("tcp://127.0.0.1:*");
+  const auto endpoint = occupied.get(zmq::sockopt::last_endpoint);
+  scenario.metrics_thread = Launch("metrics", scenario.control,
+      [&, endpoint](auto stop) {
+        MetricsThread conflict(endpoint, 100ms);
+        conflict.Run(scenario.metrics, stop, scenario.control);
+      }, &scenario.metrics_done);
+  RunControl waiter;
+  WaitUntil([&] { return scenario.metrics_done.load() && scenario.writer_done.load() &&
+      scenario.book_done.load() && scenario.producer_done.load(); }, waiter, ScenarioDeadline());
+  scenario.cleanup.Abort();
+  REQUIRE(scenario.control.Failed());
+  REQUIRE(std::string(scenario.control.Stage()) == "metrics");
+  bool bind_error = false;
+  try { std::rethrow_exception(scenario.control.Error()); }
+  catch (const zmq::error_t& error) { bind_error = error.num() == EADDRINUSE; }
+  REQUIRE(bind_error);
+  REQUIRE(scenario.admitted.size() == 6);
+  REQUIRE(scenario.metrics.writer_orders.Read() == 1);
+  REQUIRE(WriterThreadInspector::Released(*scenario.writer));
 }
