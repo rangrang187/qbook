@@ -230,11 +230,20 @@ int detail::RunServiceImpl(const Config& config, const ServiceHooks* hooks) {
       control.Fail("service", std::current_exception());
     }
     if (control.Failed()) RequestAll(stages);
+    const auto observe = [&](ServicePhase phase) noexcept {
+      if (hooks && hooks->on_lifecycle) hooks->on_lifecycle(hooks->lifecycle_context, phase);
+    };
+    observe(ServicePhase::StopObserved);
+    const auto join_and_observe = [&](Stage& stage, ServicePhase phase) {
+      const bool started = stage.thread.joinable();
+      StopAndJoin(stage, stages, control);
+      if (started) observe(phase);
+    };
     // 下游只在上游 join 后收到普通停止；等待期间持续观察任何新故障。
-    StopAndJoin(feed_stage, stages, control);
-    StopAndJoin(book_stage, stages, control);
-    StopAndJoin(writer_stage, stages, control);
-    StopAndJoin(metrics_stage, stages, control);
+    join_and_observe(feed_stage, ServicePhase::FeedJoined);
+    join_and_observe(book_stage, ServicePhase::BookJoined);
+    join_and_observe(writer_stage, ServicePhase::WriterJoined);
+    join_and_observe(metrics_stage, ServicePhase::MetricsJoined);
     cleanup.Dismiss();
   } catch (...) {
     control.Fail("service", std::current_exception());

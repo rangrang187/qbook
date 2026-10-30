@@ -4,11 +4,11 @@ Guidance for Codex when working in this repository.
 
 ## What this is
 
-`qbook` 是参考 `nqbook` 重新开发的 C++ 限价订单簿服务，用于接收行情事件、按交易品种维护订单簿、生成快照并记录数据；它根据外部成交事件更新订单，不主动撮合买卖订单。项目使用 C++23、CMake、ZeroMQ、Arrow/Parquet 和已有的 `qlib` 基础库，项目代码使用命名空间 `qbook`。常驻进程中的行情接收、订单簿维护、数据写入三个业务阶段通过 SPSC 队列传递数据，独立 Metrics 阶段只读原子指标。V0 支持库和 V1 订单簿核心已完成；V1 历史 Debug 与 ASan/UBSan 均为 60/60 通过。V2 已完成纯协议、Feed/Book 阶段和测试消费者，Debug 验收为 115/115 通过。V3 已完成五类 Parquet、Writer 阶段、正式入口及信号停止，完整 Debug 154/154、核心分支 75/75、Release 文件与服务 39/39 通过。V4 指标发布、四阶段生命周期、Node/SSE 与只读 UI 已实现，本轮C++167/167、UI153/153、类型检查及100/2000ms两组Chromium各3/3通过；性能实验留待 V5。实际构建与验收状态见 [README.md](README.md) 和本地版本记录。
+`qbook` 是参考 `nqbook` 重新开发的 C++ 限价订单簿服务，用于接收行情事件、按交易品种维护订单簿、生成快照并记录数据；它根据外部成交事件更新订单，不主动撮合买卖订单。项目使用 C++23、CMake、ZeroMQ、Arrow/Parquet 和已有的 `qlib` 基础库，项目代码使用命名空间 `qbook`。常驻进程中的行情接收、订单簿维护、数据写入三个业务阶段通过 SPSC 队列传递数据，独立 Metrics 阶段只读原子指标。V0 支持库和 V1 订单簿核心已完成；V1 历史 Debug 与 ASan/UBSan 均为 60/60 通过。V2 已完成纯协议、Feed/Book 阶段和测试消费者，Debug 验收为 115/115 通过。V3 已完成五类 Parquet、Writer 阶段、正式入口及信号停止，完整 Debug 154/154、核心分支 75/75、Release 文件与服务 39/39 通过。V4 指标发布、四阶段生命周期、Node/SSE 与只读 UI 已实现，V4历史C++167/167、UI153/153、类型检查及100/2000ms两组Chromium各3/3通过；V5 已新增真实实验与分析工具，实际验证状态见实验报告；OI-04绝对性能门槛保持待定。实际构建与验收状态见 [README.md](README.md) 和本地版本记录。
 
 ## Layout
 
-以下列出当前文件与后续规划位置。Orderbook、Protocol、Feed/Book、持久化、正式服务、指标发布和 UI 已实现；benchmark 仍是规划。按当前版本需要创建文件，不要一次性生成所有目录、空类或占位实现。已有文件采用不同路径时，先核对实际结构，再同步本文档。
+以下列出当前文件与后续规划位置。Orderbook、Protocol、Feed/Book、持久化、正式服务、指标发布和 UI 已实现；V5 benchmark 已有真实实现，实验与验收状态单独记录。按当前版本需要创建文件，不要一次性生成所有目录、空类或占位实现。已有文件采用不同路径时，先核对实际结构，再同步本文档。
 
 ```text
 AGENTS.md                         Codex 的仓库工作规则
@@ -45,7 +45,7 @@ src/detail/MetricsLayout.h        136 字节指标小端 ABI、类型及逐字�
 src/main.cpp                      配置加载、日志初始化及运行入口
 src/detail/                       排他目录/文件创建和服务、Writer 私有协作声明
 tests/                            订单簿及其他组件的单元测试、集成测试
-tests/support/OrderbookInspector.h 测试只读观察器，检查全部存储、索引、价位和链接
+tests/support/OrderbookInspector.h 无Catch2的只读观察器，供测试/实验检查存储、索引、价位和链接
 tests/support/AllocationFailure.*  专用测试程序的普通与对齐分配替换
 tests/support/FeedPublisher.*      有限 XPUB 测试发布者，以订阅通知确认就绪
 tests/support/RecordCollector.*    有上限的测试结果收集器，join 后读取结果
@@ -58,7 +58,9 @@ tests/fixtures/protocol/           独立 golden bytes 与字段说明
 tests/fixtures/metrics/            C++ 固定指标字节与独立手写字符串期望
 tests/monitoring_fixture_publisher.cpp 有限真实行情/指标发布器，仅用于测试
 tests/parquet_verify.cpp          独立关闭文件读回工具，仅用于测试
-benchmarks/                       独立性能实验；按版本需要添加
+benchmarks/                       四个独立实验程序、冻结参数和测量/校验支撑
+scripts/analyse-benchmarks.py     精确CSV/manifest校验、统计及A/B比较
+results/benchmarks/              本地原始实验与失败证据，保留但不提交
 third_party/qlib/                 用户本地 qlib 的固定源码快照
 third_party/qlib.sha256            qlib 相对路径与 SHA-256 内容清单
 third_party/libzmq/               固定 libzmq 4.3.5 源码与许可证
@@ -69,6 +71,7 @@ cmake/arrow-dependencies.lock.json 历史固定 Ubuntu 包来源、版本、哈�
 scripts/install_arrow_dependencies.py 历史固定包恢复工具，容器内构建无需运行
 scripts/run-monitoring-tests.mjs  真实服务、Next 生产服务与 Chromium 验收编排
 .devcontainer/devcontainer.json  当前开发容器、工作目录和挂载配置
+.clangd                         clangd 读取 build/debug 编译数据库的配置
 .deps/arrow-26.0.0/               历史安装脚本的输出位置，构建不自动选择，不提交
 ui/                              独立 Next.js/React/TypeScript npm 工程 qbook-ui
 ui/lib/metrics.ts                136 字节精确解码、全字符串 DTO 和 BigInt 校验
@@ -98,8 +101,8 @@ data_out/                        运行生成的数据文件，不提交
 `qbook_pipeline_tests` 包含 Feed、Book 和真实网络/受控队列场景共 40 项，使用本机 TCP 临时端口；无发布者场景使用独占 IPC 路径。
 V2 已验证流水线关闭分支 75/75 通过，以及关闭测试时四个生产库可构建；网络测试需要允许本机 socket 的环境。
 完整 V3 历史注册 `storage::` 18 项和 `service::` 21 项，加上前置 115 项共 154 项。
-V4 新增 `metrics::` 11 项，`service::` 扩为 23 项；本轮完整 C++167/167、UI153/153及100/2000ms两组真实Chromium各3/3通过，正常停止后文件读回通过。
-V4验收后按初始目录清单清理了本轮新建build、node_modules、.next与测试输出；固定源码、锁文件和fixtures保留，下次需重新构建。
+V4 新增 `metrics::` 11 项，`service::` 扩为 23 项；V4历史完整 C++167/167、UI153/153及100/2000ms两组真实Chromium各3/3通过，正常停止后文件读回通过。
+V4验收后按初始目录清单清理了当时新建build、node_modules、.next与测试输出；固定源码、锁文件和fixtures保留，下次需重新构建。
 V3 初次验收的完整 Debug 154/154、核心分支 75/75 和 Release 文件/服务 39/39 均已实际执行通过。
 2026-10-25 开发容器系统库切换后 Debug 重新通过 154/154；删除项目 `.deps` 后，存储和服务复验 39/39 通过。随后按用户要求清理了 `build/`，下次按 README 重新构建。
 关闭测试的完整生产构建不含测试源码或目标；SERVICE 缺少任一前置开关时均明确拒绝配置。
@@ -114,6 +117,8 @@ Catch2 v3、fkYAML、spdlog、libzmq 4.3.5 与 cppzmq 4.10.0 同样保留固定�
 链接真实 `Arrow::arrow_shared`、`Parquet::parquet_shared`，保持 26.0.0 EXACT，配置时不下载。
 CMake 不再自动选择 `.deps`，不注入其绝对 RPATH 或修改 `LD_LIBRARY_PATH`。
 `.devcontainer/devcontainer.json` 使用 `cpp-dev:latest`；仓库尚无 Dockerfile 或固定镜像 digest。
+容器扩展清单包含 LLVM clangd；根 `.clangd` 读取 `build/debug/compile_commands.json`。
+首次使用或清理 build 后需重新执行 CMake 配置生成数据库，编辑器索引不要求完整编译。
 历史包锁文件与恢复脚本继续保留，它们不能单独复现整个容器。
 
 从 **qbook 仓库根目录** 执行，常规构建持续复用 `build/debug`：
@@ -130,7 +135,7 @@ ctest --test-dir build/debug --output-on-failure --no-tests=error
 ```
 
 `--show-only` 只确认注册数量；必须实际执行测试才可写通过。
-`BUILD_TESTING=OFF` 按能力开关构建生产库和服务，不要求 Catch2 或测试辅助。benchmark 开关为 ON 仍明确拒绝配置。
+`BUILD_TESTING=OFF` 按能力开关构建生产库和服务，不要求 Catch2 或测试辅助。BENCHMARKS 默认OFF；ON时建立core/protocol，Writer需要PERSISTENCE，Pipeline需要SERVICE；不自动打开其他开关。纯观察和文件核对辅助可供实验复用，不引入Catch2，正式服务不链接实验。
 完整 V4 在容器内将上面的 PERSISTENCE 和 SERVICE 同时设为 ON，并显式指定
 `-DArrow_DIR=/usr/lib/x86_64-linux-gnu/cmake/Arrow` 和 `-DParquet_DIR=/usr/lib/x86_64-linux-gnu/cmake/Parquet`。
 无需运行历史安装脚本；跨宿主机和容器时重新生成含绝对路径的旧缓存，具体命令见 README。
@@ -144,11 +149,11 @@ UI 是独立 npm 工程；使用 Node 24.22.1 LTS、npm 11.19.1 和唯一 `ui/pa
 再以 `QBOOK_METRICS_ENDPOINT=tcp://127.0.0.1:5556 npm start -- --hostname 0.0.0.0 --port 3000` 启动。
 容器转发 3000 后访问 `http://localhost:3000`；详细依赖和命令见 [ui/README.md](ui/README.md)。
 `NEXT_PUBLIC_METRICS_SAMPLE_PERIOD_MS` 是浏览器构建期配置，必须与 C++ YAML `sample_period` 一致；100/2000 ms 验收需各自重新 build UI，改 start 环境不生效。
-完整浏览器测试先构建 C++，再读取 CMake 生成的 `build/debug/tests/runtime-paths.json`，不能猜路径或使用旧可执行文件。
-本轮经官方SHA-256校验后安装 Node 到 `/opt/node-v24.22.1-linux-x64`，通过 `/usr/local/bin` 提供命令；保留固定工具链，清理临时下载副本。不把它写成容器原有安装，也不恢复项目 `.deps`。
+完整浏览器测试先构建 C++，再读取 CMake 生成的所选目录 `tests/runtime-paths.json`（默认build/debug；测试专用QBOOK_TEST_BUILD_DIR显式选择时不回退），不能猜路径或使用旧可执行文件。
+V4曾安装Node，V5发现当前容器缺失后以同一官方SHA-256校验归档恢复Node 到 `/opt/node-v24.22.1-linux-x64`，通过 `/usr/local/bin` 提供命令；保留固定工具链，清理临时下载副本。不把它写成容器原有安装，也不恢复项目 `.deps`。
 
 新增版本时只接入当前功能所需的依赖和实际源码，不创建空类或伪服务目标。
-完整服务、信号停止、监控和文件验收命令见 README；性能命令随 V5 落实后补充。
+完整服务、信号停止、监控和文件验收命令见 README；性能命令见benchmarks/README.md，实际结果见docs/benchmarks/V5-results.md。
 构建产物按当前版本计划区分原有目录与本次新建目录后清理，固定依赖源码保留。
 
 ## Conventions
@@ -198,3 +203,12 @@ UI 是独立 npm 工程；使用 Node 24.22.1 LTS、npm 11.19.1 和唯一 `ui/pa
 - **Git 与交付。** 遵循用户当前授权和版本计划中的 Git 约定；未授权时不自动提交、推送或改写历史。每次交付说明完成的行为、涉及文件、验证结果和剩余问题。不要假定存在参考作者的自动提交任务或本机专用 skill。
 
 - **持续更新。** 本文件记录跨任务持续有效的规则，不替代需求、规格或每个版本的实现计划。目录、构建命令或架构约定落地变化时同步更新相应内容，删除过时说明；计划内容只有在实际实现并验证后才能改成已完成，不能为了迎合当前代码而擅自改写需求。
+
+
+## V5当前工程事实
+
+V5四个benchmark及分析器已实施；正式53case、53独立预热、265测量轮，264valid和1个L2稳态invalid全部保留。Debug167/167；最终Release新增34项benchmark检查、共201/201；独立新建build/v5-final再次201/201、53项smoke及100ms真实Chromium3/3。UI153/153、100/2000ms两次生产build的浏览器各3/3、Python34/34与Node路径工具5/5均本轮实际执行。V5-04功能复验交付，OI-04和整版完整验收仍待定，不能将文件Close成功覆盖稳态窗口失败。
+
+Service只增加五个私有冷路径生命周期点；生产默认hook为空，不引入Feed逐事件回调。benchmark独立拥有配置、负载、期望、计时和manifest；成功网络worker在全部join后核对冷标记完整性。核心/协议轻量，Writer依持久化、Pipeline依服务；BUILD_TESTING=OFF不含Catch2或分配替换。分析器拒绝身份/参数不相容的A/B，smoke/profile不当正式成绩。本轮没有保留生产性能优化；perf缺失如实记N/A。
+
+原始结果本地results/benchmarks/及docs/releases/保留且不提交。按登记清理本轮新建可再生成目录；不要删除固定源码、锁文件或测量证据。使用相同源码时，文档更新不构成重新测量理由；影响实际计时路径的修改必须重测受影响矩阵。

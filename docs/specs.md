@@ -1,8 +1,8 @@
 # qbook Spec（技术规格文档）
 
-版本：0.6｜日期：2026-10-26｜状态：V0～V4 已实现并验收；V5 为设计基线
+版本：0.7｜日期：2026-10-27｜状态：V0～V4历史验收保留；V5实验及功能复验已交付，完整验收待定
 
-本文件依据 [requirement.md](requirement.md) 解释 qbook 的设计与接口契约，参考材料为 nqbook v0.5.0 与 qlib(V4) 源码。V0 已交付配置、共享类型与故障/指标基础；V1 已完成订单簿核心、同步快照及对应验证。V2 已建立协议、Feed/Book 阶段和测试链路；V3 已建立五类持久化、Writer、正式入口和信号停止。V4 已完成指标发布、四阶段服务、Node/SSE、只读页面及两组周期的真实浏览器与文件验收；性能实验留待 V5。具体实施与证据见 Implementation Plan 和本地版本记录，任务顺序见 Sprint Backlog，仓库工作规则见 [AGENTS.md](../AGENTS.md)。
+本文件依据 [requirement.md](requirement.md) 解释 qbook 的设计与接口契约，参考材料为 nqbook v0.5.0 与 qlib(V4) 源码。V0 已交付配置、共享类型与故障/指标基础；V1 已完成订单簿核心、同步快照及对应验证。V2 已建立协议、Feed/Book 阶段和测试链路；V3 已建立五类持久化、Writer、正式入口和信号停止。V4 已完成指标发布、四阶段服务、Node/SSE、只读页面及两组周期的真实浏览器与文件验收；V5性能实验已实际执行，结果与无效轮见docs/benchmarks/V5-results.md。具体实施与证据见 Implementation Plan 和本地版本记录，任务顺序见 Sprint Backlog，仓库工作规则见 [AGENTS.md](../AGENTS.md)。
 
 本文已核对 qlib 的实际接口，不把它机械视为 nlib 的改名。价格/数量倍率、队列容量语义与 CMake 目标已有源码依据；未确定的真实行情源和性能门槛在第 7 章保留；已接入依赖以 README 的固定来源和内容清单为准。代码块用于说明接口或协作方式，完整声明与可编译实现以仓库代码为准。
 
@@ -90,7 +90,7 @@ flowchart TD
 | T-05 指标监控 | `include/Threads/MetricsThread.h`、`src/Metrics.cpp`、`src/Threads/MetricsThread.cpp`、`src/detail/MetricsLayout.h`、`src/detail/MetricsSend.h` | FR-13～FR-15 | 更新/采样统计，不将普通 `qlib::metrics` 当原子共享对象。 |
 | T-06 监控界面 | `ui/lib/metrics.ts`、`ui/lib/server/metrics-stream.ts`、`ui/lib/rate.ts`、`ui/lib/monitor.ts`、`ui/app/api/metrics/route.ts`、`ui/app/page.tsx`、`ui/components/MetricTrend.tsx` | FR-16、FR-17 | 消费指标、计算显示值；不向核心发送修改请求。 |
 
-公共声明位于 `include/`，实现位于 `src/`；`include/PipelineTypes.h` 定义 `BookMode` 和两条队列别名，避免 Writer 为获得类型而包含完整 BookThread。`Runtime.cpp` 只实现轻量 RunControl，`Service.cpp` 装配服务，`main.cpp` 加载配置并调用 RunService。私有协作声明位于 `src/detail/`，读取器和故障夹具只进入 `tests/`。UI 已由 V4 建立独立 npm 工程；性能实验的 `benchmarks/` 随 V5 创建；运行输出默认位于 `data_out/`。
+公共声明位于 `include/`，实现位于 `src/`；`include/PipelineTypes.h` 定义 `BookMode` 和两条队列别名，避免 Writer 为获得类型而包含完整 BookThread。`Runtime.cpp` 只实现轻量 RunControl，`Service.cpp` 装配服务，`main.cpp` 加载配置并调用 RunService。私有协作声明位于 `src/detail/`，读取器和故障夹具只进入 `tests/`。UI 已由 V4 建立独立 npm 工程；性能实验的 `benchmarks/` 已由V5建立；运行输出默认位于 `data_out/`。
 
 ### 2.4 模块之间的依赖、协作关系及设计理由
 
@@ -1466,21 +1466,21 @@ qlib 当前为头文件接口库，可使用 `add_subdirectory(third_party/qlib)
 | V4 指标发布 | `qbook_metrics` 只包含 `src/Threads/MetricsThread.cpp`，公开链接 support，私有链接 cppzmq、Threads 与日志；随 PIPELINE 建立。基础 `src/Metrics.cpp` 留在 support。 |
 | Arrow/Parquet 容器接入 | 当前使用容器 `/usr` 的 Ubuntu 24.04 amd64 26.0.0-1 官方包，保持 26.0.0 EXACT；链接真实 `Arrow::arrow_shared`、`Parquet::parquet_shared` 共享目标。历史包锁及恢复脚本保留，不是当前构建步骤，不恢复 `.deps`。 |
 | 配置与日志 | 初始采用 fkYAML、spdlog 头文件依赖，保留版本来源与许可证，不假定容器里已经安装。 |
-| 功能测试 | 固定 Catch2 v3 与 CTest；unit 69、allocation 6、pipeline 40、metrics 11、storage 18、service 23，共 167 项。分配替换只链接 allocation；文件读取和故障流只进入测试目标。服务测试驱动复用真实服务，正式 qbook 不接入测试配置。 |
-| 性能实验 | 独立 benchmark 目标，默认不作为普通功能测试门槛；先采用最小测量程序，是否引入额外框架由性能版本的实验需求决定。 |
+| 功能测试 | 固定 Catch2 v3 与 CTest；unit 69、allocation 6、pipeline 40、metrics 11、storage 18、service 23，共 167 项。分配替换只链接 allocation；故障流只进入测试目标；无Catch2的独立文件读取器可被显式开启的实验复用。服务测试驱动复用真实服务，正式 qbook 不接入测试配置。 |
+| 性能实验 | V5四个真实目标，公共`qbook_benchmark_support`；steady_clock批计时、严格独立配置、16列CSV/manifest与Python分析。`benchmark::`仅检查正确性，不设机器速度门槛。具体结果见docs/benchmarks。 |
 | UI | 独立 npm 工程 qbook-ui，唯一 package-lock；Node 24.22.1 LTS/npm 11.19.1、Next 16.4.3、React/React DOM 19.3.1、TypeScript 7.0.2、zeromq 6.8.0、Vitest 5.0.5/Vite 8.3.5、Playwright 1.64.1。UI 不进入 C++ 依赖图。 |
 
 `BUILD_TESTING` 控制本项目测试。`QBOOK_BUILD_PIPELINE` 默认 ON，控制通信依赖、流水线/指标发布库及其测试；OFF 时不查找或构建 ZMQ，保留支持库、核心库和纯协议测试。`QBOOK_BUILD_PERSISTENCE`、`QBOOK_BUILD_SERVICE` 与 `QBOOK_BUILD_BENCHMARKS` 默认 OFF。
 
-SERVICE 为 ON 而 PIPELINE 或 PERSISTENCE 为 OFF 时明确拒绝配置；benchmark 为 ON 仍拒绝配置。`BUILD_TESTING=OFF` 按能力开关构建生产库和正式服务，不引入 Catch2、发布者、收集器、读取器、测试驱动或分配替换。libzmq 的测试、文档、性能工具、draft、CURVE、WebSocket 和可选第三方后端关闭。
-持久化启用时才查找 Arrow/Parquet 26.0.0 EXACT；当前显式 CMake 包路径为 `/usr/lib/x86_64-linux-gnu/cmake/Arrow` 和 `/usr/lib/x86_64-linux-gnu/cmake/Parquet`，共享库由系统路径解析。CMake 不自动选择项目 `.deps`，不注入历史绝对 RPATH 或修改 `LD_LIBRARY_PATH`；配置和构建不联网。历史安装脚本与 JSON 包锁继续保留。开发容器仍使用 `cpp-dev:latest`，没有仓库内 Dockerfile 或固定 digest，不能单凭该标签复现整个环境。Node/npm 本轮由校验官方 SHA-256 的临时工具目录提供，后续容器需自行固定提供，见 UI README。
+SERVICE 为 ON 而 PIPELINE 或 PERSISTENCE 为 OFF 时明确拒绝配置；BENCHMARKS为ON时建立真实core/protocol，Writer随PERSISTENCE、Pipeline随SERVICE，不自动打开能力。`BUILD_TESTING=OFF` 不引入Catch2、测试驱动或分配替换；若显式开启BENCHMARKS，实验可复用无断言依赖的只读观察器、编码、进程控制和独立文件读取能力，这些不链接到生产服务。libzmq 的测试、文档、性能工具、draft、CURVE、WebSocket 和可选第三方后端关闭。
+持久化启用时才查找 Arrow/Parquet 26.0.0 EXACT；当前显式 CMake 包路径为 `/usr/lib/x86_64-linux-gnu/cmake/Arrow` 和 `/usr/lib/x86_64-linux-gnu/cmake/Parquet`，共享库由系统路径解析。CMake 不自动选择项目 `.deps`，不注入历史绝对 RPATH 或修改 `LD_LIBRARY_PATH`；配置和构建不联网。历史安装脚本与 JSON 包锁继续保留。开发容器仍使用 `cpp-dev:latest`，没有仓库内 Dockerfile 或固定 digest，不能单凭该标签复现整个环境。Node/npm以官方SHA-256校验的固定归档恢复至容器/opt，临时下载目录可清理；镜像复现限制见UI README。
 qlib 按用户 2026-10-20 授权，以 `/mnt/d/Desktop/unsw/qlib` 的完整源码副本和
 `third_party/qlib.sha256` 固定内容版本，原目录只读；当前无 Git 提交可记录。
 依赖版本、许可证和构建接入见 [README](../README.md)。
 
-本轮 Node 经官方 SHA-256 核对后安装到容器 `/opt/node-v24.22.1-linux-x64`，由 `/usr/local/bin/node`、`npm`、`npx`、`corepack` 链接提供命令。`build/v4-tools` 仅为可清理的下载/探测目录；删除该目录不影响已安装 Node。`cpp-dev:latest` 尚无仓库内 Dockerfile 或固定 digest，容器内安装不能单独复现完整镜像环境。
+V4历史 Node 经官方 SHA-256 核对后安装到容器 `/opt/node-v24.22.1-linux-x64`，由 `/usr/local/bin/node`、`npm`、`npx`、`corepack` 链接提供命令。`build/v4-tools` 仅为可清理的下载/探测目录；删除该目录不影响已安装 Node。`cpp-dev:latest` 尚无仓库内 Dockerfile 或固定 digest，容器内安装不能单独复现完整镜像环境。
 
-本轮在现有容器重跑前置基线 154/154，通过后加入 V4，完整 CTest 167/167、核心隔离 75/75 与无测试生产构建均通过；实际生成的编译图确认核心不配置 ZMQ、生产不引入 Catch2 或测试工具。最终 CTest 为 167/167（4.75 秒），UI 类型检查、153/153 单元（26.89 秒）通过；100 ms、2000 ms 分别生产构建，Chromium 156.0.8078.4 真实验收各 3/3（约 1.1、1.7 分钟），包括原生模块加载、连接状态、观察端关闭后继续业务及正常关闭文件读回。完整测试配置生成 `build/debug/tests/runtime-paths.json`，键为 `qbook`、`serviceTestDriver`、`fixturePublisher`、`fixtureGenerator`、`parquetVerify`、`metricsFixtures`；前五项为本轮目标文件绝对路径，最后一项为指标 fixture 目录。编排必须在构建成功后使用这些真实路径。
+V4当时在容器重跑前置基线 154/154，通过后加入 V4，完整 CTest 167/167、核心隔离 75/75 与无测试生产构建均通过；实际生成的编译图确认核心不配置 ZMQ、生产不引入 Catch2 或测试工具。最终 CTest 为 167/167（4.75 秒），UI 类型检查、153/153 单元（26.89 秒）通过；100 ms、2000 ms 分别生产构建，Chromium 156.0.8078.4 真实验收各 3/3（约 1.1、1.7 分钟），包括原生模块加载、连接状态、观察端关闭后继续业务及正常关闭文件读回。完整测试配置生成 `build/debug/tests/runtime-paths.json`，键为 `qbook`、`serviceTestDriver`、`fixturePublisher`、`fixtureGenerator`、`parquetVerify`、`metricsFixtures`；前五项为本轮目标文件绝对路径，最后一项为指标 fixture 目录。编排必须在构建成功后使用这些真实路径。
 
 V3 实测结果为完整 Debug 154/154、核心分支 75/75、Release 文件与服务 39/39 通过。关闭测试的完整生产构建不含 Catch2 或测试目标；SERVICE 缺少任一前置开关均明确拒绝配置。未逐点注入 Arrow 内部分配失败、fd 移交内部失败、系统 close 与信号系统调用错误；相关返回值、状态与固定库资源契约经代码审阅。重复信号测试连续发送同一信号，可能发生合并，其证据不等于确定覆盖收尾期间的第二次信号。实际命令和限制见本地 V3 记录。
 
@@ -1588,3 +1588,18 @@ V2 用有限 XPUB 发布者和有上限的 `RecordCollector` 验证内存记录�
 | 0.4 | 2026-10-22 | Codex | 同步 V2 已实现的协议与 Feed/Book、诊断和算术细化、停止顺序、测试装配及固定通信依赖；115/115 测试及两个构建分支通过，业务契约与 ABI 不变。 |
 | 0.5 | 2026-10-23 | Codex | 同步 V3 五类文件格式、Writer、Service.cpp、信号与资源生命周期、固定 Arrow/Parquet 依赖和构建分支；Debug 154/154、核心 75/75、Release 文件/服务 39/39 通过，业务契约与 ABI 不变。 |
 | 0.6 | 2026-10-26 | Codex | 同步 V4 实际指标库与四阶段服务、内部布局/发送分类、Node/SSE 与页面模块、锁定 UI 版本、runtime-paths 清单，以及容器 `/usr` Arrow 接入；C++ 167/167、核心 75/75、无测试生产构建和 UI 153/153、类型检查通过；100/2000 ms 独立生产构建，Chromium 156.0.8078.4 两组各 3/3 通过，V4 验收完成，业务与 ABI 契约不变。 |
+
+### V5 实验实现补充（2026-10-27）
+
+正式业务ABI、指标单写和正常停止顺序保持不变。Service私有hooks增加五个noexcept冷路径观察点，只有实际创建并join的阶段才发布Joined；生产qbook默认不安装回调。核心/协议实验不引入ZMQ、Arrow、Node或Catch2；实验目标的纯读取辅助与断言测试分离，未向业务公共接口添加测试专用入口。
+
+每轮新初态、输入/完整状态独立校验；Writer分别记录Open/Add/Close/total，正常Close后按全部chunk读回schema、元数据、ZSTD、整数和顺序，并读取真实物理row group数。受控链路保存成功push账本，网络链路接纳数未知保持null。稳态保留parent/worker独立时钟域和所有窗口，不能以发送数代替接纳数、以原子差值代替精确队列长度。
+
+测试编排`QBOOK_TEST_BUILD_DIR`默认build/debug，显式路径只使用自身runtime-paths.json且不回退；生产C++仍只用YAML。CSV固定16列最后一项validation_message用于无效原因，原始整数精确保留，纯耗时none/0不计算吞吐。OI-04绝对性能门槛待定，实验与复验的实际结果见V5-experiment/V5-results及本地V5记录。
+
+
+### V5实施记录（2026-10-27）
+
+四个实验目标、独立配置和校验、固定16列CSV与manifest、精确分析器已实现。Service私有生命周期hook固定五个完成点，benchmark只在冷路径观察，正式默认空；受控链路成功push账本与网络未知accepted=null严格区分。实验worker在成功join后校验冷标记完整性。正常Close后独立读回全部字段，稳态无效不覆盖文件正确性，也不反向用文件正确性宣称稳态通过。
+
+最终Debug167/167、Release201/201，独立干净Release再次201/201及53项smoke、其真实浏览器100ms3/3；UI153/153及100/2000ms分别生产build的浏览器各3/3。本版新增34项benchmark正确性检查。正式265测量轮264valid、1个L2steadyinvalid；perf未安装，未保留生产性能优化，OI-04绝对门槛保持待定。详细实验条件和需求映射见V5-results及本地releases/V5.md；业务、ABI、文件及UI契约未降低。

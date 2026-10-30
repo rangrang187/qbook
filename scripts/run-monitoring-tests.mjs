@@ -1,21 +1,17 @@
-import { access, readFile, mkdir, mkdtemp, writeFile } from "node:fs/promises";
-import { constants } from "node:fs";
+import { access, mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { loadMonitoringRuntime } from "./support/monitoring-build.mjs";
 
 // 只编排本次构建的测试程序；不构建 UI，不猜测旧二进制位置。
 const root = fileURLToPath(new URL("../", import.meta.url));
-const runtimeFile = path.join(root, "build/debug/tests/runtime-paths.json");
-const runtime = JSON.parse(await readFile(runtimeFile, "utf8"));
-for (const key of ["qbook", "serviceTestDriver", "fixturePublisher", "fixtureGenerator", "parquetVerify"])
-  await access(runtime[key], constants.X_OK);
-await access(path.join(runtime.metricsFixtures, "layout.bin"));
+const { buildDir, runtimeFile } = await loadMonitoringRuntime(root, process.env.QBOOK_TEST_BUILD_DIR);
 const period = process.env.QBOOK_E2E_SAMPLE_PERIOD_MS;
 if (period !== "100" && period !== "2000")
   throw new Error("QBOOK_E2E_SAMPLE_PERIOD_MS must explicitly be 100 or 2000");
 await access(path.join(root, "ui/.next/BUILD_ID"));
-const baseOutput = path.join(root, `build/v4-browser-${period}`);
+const baseOutput = path.join(buildDir, `monitoring-${period}`);
 await mkdir(baseOutput, { recursive: true });
 const output = await mkdtemp(path.join(baseOutput, "run-"));
 const child = spawn(process.execPath,
@@ -34,5 +30,5 @@ const result = await new Promise((resolve, reject) => {
 });
 process.removeListener("SIGINT", interrupt);
 process.removeListener("SIGTERM", terminate);
-await writeFile(path.join(output, "execution.json"), JSON.stringify({ period, ...result }, null, 2) + "\n");
+await writeFile(path.join(output, "execution.json"), JSON.stringify({ period, buildDir, runtimeFile, ...result }, null, 2) + "\n");
 process.exitCode = result.code === 0 && result.signal === null ? 0 : 1;

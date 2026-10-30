@@ -2,7 +2,9 @@
 
 #include "Orderbook.h"
 
-#include <catch2/catch_test_macros.hpp>
+#include <source_location>
+#include <stdexcept>
+#include <string>
 
 #include <cstddef>
 #include <cstdint>
@@ -71,75 +73,75 @@ struct OrderbookInspector {
     const auto found = book.by_id_.find(id);
     if (found == book.by_id_.end()) return nullptr;
     const auto live = Live(book);
-    REQUIRE(live.contains(found->second));
+    CheckCondition(live.contains(found->second));
     return found->second;
   }
 
   static void Check(const Orderbook& book) {
     const auto live = Live(book);
-    REQUIRE(live.size() == book.orders_.size());
-    REQUIRE(book.size() == book.by_id_.size());
-    REQUIRE(live.size() == book.by_id_.size());
+    CheckCondition(live.size() == book.orders_.size());
+    CheckCondition(book.size() == book.by_id_.size());
+    CheckCondition(live.size() == book.by_id_.size());
     std::set<const qlib::order*> indexed;
     for (const auto& [id, node] : book.by_id_) {
-      REQUIRE(live.contains(node));
-      REQUIRE(node->order_id == id);
-      REQUIRE(node->instrument_id == book.instrument_id_);
-      REQUIRE(indexed.insert(node).second);
+      CheckCondition(live.contains(node));
+      CheckCondition(node->order_id == id);
+      CheckCondition(node->instrument_id == book.instrument_id_);
+      CheckCondition(indexed.insert(node).second);
     }
-    REQUIRE(indexed == live);
+    CheckCondition(indexed == live);
 
     std::set<const qlib::order*> chained;
     for (const auto side : {qlib::side::buy, qlib::side::sell}) {
       for (const auto& [price, level] : Levels(book, side)) {
-        REQUIRE(price > 0);
-        REQUIRE(level.qty > 0);
+        CheckCondition(price > 0);
+        CheckCondition(level.qty > 0);
         if (book.mode_ == BookMode::L2) {
-          REQUIRE(level.head == nullptr);
-          REQUIRE(level.tail == nullptr);
+          CheckCondition(level.head == nullptr);
+          CheckCondition(level.tail == nullptr);
           continue;
         }
-        REQUIRE(live.contains(level.head));
-        REQUIRE(live.contains(level.tail));
-        REQUIRE(level.head->prev == nullptr);
-        REQUIRE(level.tail->next == nullptr);
+        CheckCondition(live.contains(level.head));
+        CheckCondition(live.contains(level.tail));
+        CheckCondition(level.head->prev == nullptr);
+        CheckCondition(level.tail->next == nullptr);
         const qlib::order* previous = nullptr;
         const qlib::order* node = level.head;
         std::size_t visited = 0;
         std::int64_t total = 0;
         while (node != nullptr) {
-          REQUIRE(visited < live.size());
-          REQUIRE(live.contains(node));
-          REQUIRE(chained.insert(node).second);
-          REQUIRE(node->prev == previous);
-          REQUIRE(node->side == side);
-          REQUIRE(node->price == price);
-          REQUIRE(node->qty > 0);
-          REQUIRE(node->qty <= std::numeric_limits<std::int64_t>::max() - total);
+          CheckCondition(visited < live.size());
+          CheckCondition(live.contains(node));
+          CheckCondition(chained.insert(node).second);
+          CheckCondition(node->prev == previous);
+          CheckCondition(node->side == side);
+          CheckCondition(node->price == price);
+          CheckCondition(node->qty > 0);
+          CheckCondition(node->qty <= std::numeric_limits<std::int64_t>::max() - total);
           total += node->qty;
           if (node->next != nullptr) {
-            REQUIRE(live.contains(node->next));
-            REQUIRE(node->next->prev == node);
+            CheckCondition(live.contains(node->next));
+            CheckCondition(node->next->prev == node);
           }
           previous = node;
           node = node->next;
           ++visited;
         }
-        REQUIRE(previous == level.tail);
-        REQUIRE(total == level.qty);
+        CheckCondition(previous == level.tail);
+        CheckCondition(total == level.qty);
       }
     }
-    REQUIRE(chained == live);
-    if (book.mode_ == BookMode::L2) REQUIRE(live.empty());
+    CheckCondition(chained == live);
+    if (book.mode_ == BookMode::L2) CheckCondition(live.empty());
 
     const auto snapshot = book.OnSnapshot();
-    REQUIRE(snapshot.instrument_id == book.instrument_id_);
-    REQUIRE(snapshot.event_ns == book.event_ns_);
-    REQUIRE(snapshot.recv_ns == book.recv_ns_);
-    REQUIRE(snapshot.bid_price[0] == (book.bids_.empty() ? 0 : book.bids_.rbegin()->first));
-    REQUIRE(snapshot.bid_qty[0] == (book.bids_.empty() ? 0 : book.bids_.rbegin()->second.qty));
-    REQUIRE(snapshot.ask_price[0] == (book.asks_.empty() ? 0 : book.asks_.begin()->first));
-    REQUIRE(snapshot.ask_qty[0] == (book.asks_.empty() ? 0 : book.asks_.begin()->second.qty));
+    CheckCondition(snapshot.instrument_id == book.instrument_id_);
+    CheckCondition(snapshot.event_ns == book.event_ns_);
+    CheckCondition(snapshot.recv_ns == book.recv_ns_);
+    CheckCondition(snapshot.bid_price[0] == (book.bids_.empty() ? 0 : book.bids_.rbegin()->first));
+    CheckCondition(snapshot.bid_qty[0] == (book.bids_.empty() ? 0 : book.bids_.rbegin()->second.qty));
+    CheckCondition(snapshot.ask_price[0] == (book.asks_.empty() ? 0 : book.asks_.begin()->first));
+    CheckCondition(snapshot.ask_qty[0] == (book.asks_.empty() ? 0 : book.asks_.begin()->second.qty));
   }
 
   static BusinessState SnapshotState(const Orderbook& book) {
@@ -165,8 +167,8 @@ struct OrderbookInspector {
     const auto live = Live(book);
     auto* node = found->second.head;
     while (node != nullptr) {
-      REQUIRE(result.size() < live.size());
-      REQUIRE(live.contains(node));
+      CheckCondition(result.size() < live.size());
+      CheckCondition(live.contains(node));
       result.push_back(node->order_id);
       node = node->next;
     }
@@ -174,6 +176,13 @@ struct OrderbookInspector {
   }
 
  private:
+  // 检查工具返回正常结果或抛明确异常；Catch2 只属于调用它的测试程序。
+  static void CheckCondition(bool condition,
+      const std::source_location location = std::source_location::current()) {
+    if (!condition) throw std::logic_error("Orderbook invariant failed at inspector line " +
+                                           std::to_string(location.line()));
+  }
+
   static const PriceLevelMap& Levels(const Orderbook& book, qlib::side side) {
     return side == qlib::side::buy ? book.bids_ : book.asks_;
   }

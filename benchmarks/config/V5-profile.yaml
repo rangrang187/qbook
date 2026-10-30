@@ -1,0 +1,16 @@
+# V5 初始试跑参数；正式基线前由试跑证据冻结，修改需新实验身份。
+schema_version: 1
+experiment_id: V5-20261027-initial
+measurement_kind: profile
+seed: 20261027
+warmup_rounds: 1
+repetitions: 5
+max_input_bytes: 268435456
+max_output_bytes: 1073741824
+cases:
+  - case_id: core.modify.same_price
+    mode: Mbo
+    instruments: 1
+    initial_orders: 1024
+    levels: 16
+    events_per_trial: 65536

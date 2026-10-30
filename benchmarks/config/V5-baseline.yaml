@@ -1,0 +1,363 @@
+# V5正式基线：smoke-03和全规模pilot验证后冻结；修改需新实验身份。
+schema_version: 1
+experiment_id: V5-20261027-baseline
+measurement_kind: baseline
+seed: 20261027
+warmup_rounds: 1
+repetitions: 5
+max_input_bytes: 268435456
+max_output_bytes: 1073741824
+cases:
+  - case_id: core.add.growth
+    mode: Mbo
+    instruments: 1
+    initial_orders: 0
+    levels: 16
+    events_per_trial: 8192
+  - case_id: core.add.growth.new_levels
+    operation: core.add.growth
+    mode: Mbo
+    instruments: 1
+    initial_orders: 0
+    levels: 8192
+    events_per_trial: 8192
+  - case_id: core.modify.same_price
+    mode: Mbo
+    instruments: 1
+    initial_orders: 1024
+    levels: 16
+    events_per_trial: 65536
+  - case_id: core.modify.same_price.large
+    operation: core.modify.same_price
+    mode: Mbo
+    instruments: 1
+    initial_orders: 8192
+    levels: 16
+    events_per_trial: 65536
+  - case_id: core.modify.same_price.many_levels
+    operation: core.modify.same_price
+    mode: Mbo
+    instruments: 1
+    initial_orders: 1024
+    levels: 256
+    events_per_trial: 65536
+  - case_id: core.modify.existing_price
+    mode: Mbo
+    instruments: 1
+    initial_orders: 1024
+    levels: 2
+    events_per_trial: 65536
+  - case_id: core.modify.new_price
+    mode: Mbo
+    instruments: 1
+    initial_orders: 1024
+    levels: 16
+    events_per_trial: 1024
+  - case_id: core.cancel.partial
+    mode: Mbo
+    instruments: 1
+    initial_orders: 1024
+    levels: 16
+    events_per_trial: 65536
+  - case_id: core.cancel.full
+    mode: Mbo
+    instruments: 1
+    initial_orders: 1024
+    levels: 16
+    events_per_trial: 1024
+  - case_id: core.cancel.full.large
+    operation: core.cancel.full
+    mode: Mbo
+    instruments: 1
+    initial_orders: 8192
+    levels: 16
+    events_per_trial: 8192
+  - case_id: core.trade.partial
+    mode: Mbo
+    instruments: 1
+    initial_orders: 1024
+    levels: 16
+    events_per_trial: 65536
+  - case_id: core.trade.full
+    mode: Mbo
+    instruments: 1
+    initial_orders: 1024
+    levels: 16
+    events_per_trial: 512
+  - case_id: core.l2.insert
+    mode: L2
+    instruments: 1
+    initial_orders: 0
+    levels: 64
+    events_per_trial: 8192
+  - case_id: core.l2.replace
+    mode: L2
+    instruments: 1
+    initial_orders: 0
+    levels: 64
+    events_per_trial: 65536
+  - case_id: core.l2.delete
+    mode: L2
+    instruments: 1
+    initial_orders: 0
+    levels: 64
+    events_per_trial: 64
+  - case_id: core.l2.trade
+    mode: L2
+    instruments: 1
+    initial_orders: 0
+    levels: 64
+    events_per_trial: 65536
+  - case_id: core.ignored.duplicate
+    mode: Mbo
+    instruments: 1
+    initial_orders: 1024
+    levels: 16
+    events_per_trial: 65536
+  - case_id: core.ignored.unknown
+    mode: Mbo
+    instruments: 1
+    initial_orders: 1024
+    levels: 16
+    events_per_trial: 65536
+  - case_id: core.ignored.side_mismatch
+    mode: Mbo
+    instruments: 1
+    initial_orders: 1024
+    levels: 16
+    events_per_trial: 65536
+  - case_id: core.snapshot.empty
+    operation: core.snapshot
+    mode: Mbo
+    instruments: 1
+    initial_orders: 0
+    levels: 0
+    events_per_trial: 65536
+  - case_id: core.snapshot
+    mode: Mbo
+    instruments: 1
+    initial_orders: 1024
+    levels: 16
+    events_per_trial: 65536
+  - case_id: core.snapshot.many
+    operation: core.snapshot
+    mode: Mbo
+    instruments: 32
+    initial_orders: 1024
+    levels: 16
+    events_per_trial: 4096
+  - case_id: protocol.valid.order
+    mode: Mbo
+    working_set_frames: 256
+    events_per_trial: 131072
+  - case_id: protocol.valid.trade
+    mode: Mbo
+    working_set_frames: 256
+    events_per_trial: 131072
+  - case_id: protocol.valid.cancel
+    mode: Mbo
+    working_set_frames: 256
+    events_per_trial: 131072
+  - case_id: protocol.valid.level
+    mode: L2
+    working_set_frames: 256
+    events_per_trial: 131072
+  - case_id: protocol.valid.trade.l2
+    operation: protocol.valid.trade
+    mode: L2
+    working_set_frames: 256
+    events_per_trial: 131072
+  - case_id: protocol.reject.empty
+    mode: Mbo
+    working_set_frames: 256
+    events_per_trial: 131072
+  - case_id: protocol.reject.unknown_tag
+    mode: Mbo
+    working_set_frames: 256
+    events_per_trial: 131072
+  - case_id: protocol.reject.wrong_size
+    mode: Mbo
+    working_set_frames: 256
+    events_per_trial: 131072
+  - case_id: protocol.reject.mode_mismatch
+    mode: Mbo
+    working_set_frames: 256
+    events_per_trial: 131072
+  - case_id: protocol.reject.invalid_field
+    mode: Mbo
+    working_set_frames: 256
+    events_per_trial: 131072
+  - case_id: protocol.mixed
+    mode: Mbo
+    working_set_frames: 256
+    events_per_trial: 131072
+    frame_mix:
+      valid_order: 128
+      valid_trade: 64
+      valid_cancel: 16
+      invalid_field: 16
+      wrong_size: 32
+  - case_id: protocol.mixed.large
+    operation: protocol.mixed
+    mode: Mbo
+    working_set_frames: 4096
+    events_per_trial: 131072
+    frame_mix:
+      valid_order: 2048
+      valid_trade: 1024
+      valid_cancel: 256
+      invalid_field: 256
+      wrong_size: 512
+  - case_id: writer.empty
+    events_per_trial: 0
+    batch_rows: 1024
+  - case_id: writer.orders
+    events_per_trial: 8193
+    batch_rows: 1024
+  - case_id: writer.trades
+    events_per_trial: 8193
+    batch_rows: 1024
+  - case_id: writer.cancels
+    events_per_trial: 8193
+    batch_rows: 1024
+  - case_id: writer.levels
+    events_per_trial: 8193
+    batch_rows: 1024
+  - case_id: writer.books
+    events_per_trial: 8193
+    batch_rows: 1024
+  - case_id: writer.orders.b_minus_1
+    operation: writer.orders
+    events_per_trial: 1023
+    batch_rows: 1024
+  - case_id: writer.orders.b
+    operation: writer.orders
+    events_per_trial: 1024
+    batch_rows: 1024
+  - case_id: writer.orders.b_plus_1
+    operation: writer.orders
+    events_per_trial: 1025
+    batch_rows: 1024
+  - case_id: writer.orders.2b_plus_1
+    operation: writer.orders
+    events_per_trial: 2049
+    batch_rows: 1024
+  - case_id: writer.orders.batch16
+    operation: writer.orders
+    events_per_trial: 8193
+    batch_rows: 16
+  - case_id: writer.mixed
+    events_per_trial: 10245
+    batch_rows: 1024
+    record_mix:
+      order: 2049
+      trade: 2049
+      cancel: 2049
+      level: 2049
+      book: 2049
+  - case_id: writer.mixed.batch16
+    operation: writer.mixed
+    events_per_trial: 10245
+    batch_rows: 16
+    record_mix:
+      order: 2049
+      trade: 2049
+      cancel: 2049
+      level: 2049
+      book: 2049
+  - case_id: pipeline/controlled-queue/mbo
+    mode: Mbo
+    instruments: 2
+    initial_orders: 32
+    levels: 4
+    events_per_trial: 1024
+    batch_rows: 128
+    feed_queue_capacity: 1024
+    record_queue_capacity: 1024
+    snapshot_period_ms: 100
+    metrics_period_ms: 100
+    trial_timeout_sec: 30
+  - case_id: pipeline/controlled-queue/l2
+    mode: L2
+    instruments: 2
+    initial_orders: 0
+    levels: 4
+    events_per_trial: 1024
+    batch_rows: 128
+    feed_queue_capacity: 1024
+    record_queue_capacity: 1024
+    snapshot_period_ms: 100
+    metrics_period_ms: 100
+    trial_timeout_sec: 30
+  - case_id: pipeline/network-finite/mbo
+    mode: Mbo
+    instruments: 2
+    initial_orders: 32
+    levels: 4
+    events_per_trial: 1024
+    batch_rows: 128
+    feed_queue_capacity: 1024
+    record_queue_capacity: 1024
+    snapshot_period_ms: 100
+    metrics_period_ms: 100
+    trial_timeout_sec: 30
+  - case_id: pipeline/network-finite/l2
+    mode: L2
+    instruments: 2
+    initial_orders: 0
+    levels: 4
+    events_per_trial: 1024
+    batch_rows: 128
+    feed_queue_capacity: 1024
+    record_queue_capacity: 1024
+    snapshot_period_ms: 100
+    metrics_period_ms: 100
+    trial_timeout_sec: 30
+  - case_id: pipeline/network-steady/mbo
+    mode: Mbo
+    instruments: 2
+    initial_orders: 32
+    levels: 4
+    events_per_trial: 3072
+    batch_rows: 128
+    feed_queue_capacity: 1024
+    record_queue_capacity: 1024
+    snapshot_period_ms: 100
+    metrics_period_ms: 100
+    trial_timeout_sec: 30
+    input_rate: 1024
+    warmup_sec: 2
+    window_sec: 3
+    guard_sec: 1
+    sample_period_ms: 200
+    stable_windows: 3
+    rate_tolerance: 0.25
+    lag_drift_tolerance: 64
+    feed_book_lag_limit: 128
+    book_writer_lag_limit: 128
+    send_lateness_tolerance_ms: 50
+    sample_lateness_tolerance_ms: 50
+  - case_id: pipeline/network-steady/l2
+    mode: L2
+    instruments: 2
+    initial_orders: 0
+    levels: 4
+    events_per_trial: 3072
+    batch_rows: 128
+    feed_queue_capacity: 1024
+    record_queue_capacity: 1024
+    snapshot_period_ms: 100
+    metrics_period_ms: 100
+    trial_timeout_sec: 30
+    input_rate: 1024
+    warmup_sec: 2
+    window_sec: 3
+    guard_sec: 1
+    sample_period_ms: 200
+    stable_windows: 3
+    rate_tolerance: 0.25
+    lag_drift_tolerance: 64
+    feed_book_lag_limit: 128
+    book_writer_lag_limit: 128
+    send_lateness_tolerance_ms: 50
+    sample_lateness_tolerance_ms: 50

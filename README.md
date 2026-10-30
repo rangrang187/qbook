@@ -7,9 +7,9 @@ V2 已完成纯协议、Feed 接收、Book 多品种处理、周期快照和原�
 V3 已实现五类 Parquet、Writer 阶段、正式三阶段服务及 SIGINT/SIGTERM 有序停止。
 V3 初次验收的完整 Debug 154/154、Release 存储与服务 39/39、核心关闭分支 75/75 均通过。
 V4 已实现指标发布、四阶段生命周期、Node/SSE 桥接和只读监控页面。
-本轮完整 C++ 回归 **167/167**、UI 单元与组件测试 **153/153** 及类型检查通过；
-100/2000 ms 两组真实 Chromium 验收各 **3/3** 通过，观察端离线后继续业务及文件读回通过。benchmark 留待 V5。
-验收后已清理本轮新建的 `build/`、`ui/node_modules/`、`ui/.next/` 和测试输出；下次按下文重新构建及 `npm ci`。
+V4 历史完整 C++ 回归 **167/167**、UI 单元与组件测试 **153/153** 及类型检查通过；
+100/2000 ms 两组真实 Chromium 验收各 **3/3** 通过，观察端离线后继续业务及文件读回通过。V5已实现四个真实实验程序与分析器，并完成本轮功能及独立干净构建复验：Debug167/167、Release201/201、Python34/34、UI153/153及两周期浏览器各3/3，最终新构建浏览器再通过3/3。53个正式case共265轮测量，264有效、1个L2稳态轮无效；OI-04绝对门槛待定，不声明V5完整验收通过。详见[结果与限制](docs/benchmarks/V5-results.md)。
+V4 验收后已清理当时新建的 `build/`、`ui/node_modules/`、`ui/.next/` 和测试输出；下次按下文重新构建及 `npm ci`。
 
 需求、规格、任务和实现计划均位于 [docs](docs/)。
 V0 已通过 30 项自动化测试。完整验收记录位于本地 `docs/releases/V0.md`；
@@ -17,7 +17,7 @@ V0 已通过 30 项自动化测试。完整验收记录位于本地 `docs/releas
 V1 的完整验收记录保存到本地 `docs/releases/V1.md`；V2 的实际命令、输出核对和限制集中记录在本地 `docs/releases/V2.md`。
 V1 历史 Debug 与 ASan/UBSan 结果均为 60/60；V2 开发前已重新运行基线，60/60 通过。
 V3 的实际命令、文件读回与故障结果集中在本地 `docs/releases/V3.md`。
-V4 本轮环境、命令、跨语言样本与浏览器验收记录位于本地 `docs/releases/V4.md`，不覆盖前置版本结果。
+V4 历史环境、命令、跨语言样本与浏览器验收记录位于本地 `docs/releases/V4.md`，不覆盖前置版本结果。
 
 ## 构建和测试
 
@@ -48,6 +48,11 @@ ctest --test-dir build/debug --output-on-failure --no-tests=error
 ```
 
 日常开发复用 `build/debug`。`--show-only` 只列出用例，最后一条命令才运行测试。
+VS Code 容器配置自动安装 LLVM clangd 扩展；仓库根 `.clangd` 指向
+`build/debug/compile_commands.json`，由 CMake 配置阶段生成，用于头文件搜索、C++23 解析和跳转。
+首次打开或清理 `build/` 后，先执行上述 `cmake -S . -B build/debug ...` 配置命令；
+仅生成编译数据库无需执行完整构建。编辑持久化或服务源码时，使用下方完整功能配置启用对应目标。
+若编辑器仍显示旧诊断，在命令面板执行 `clangd: Restart language server`。
 `qbook_tests` 包含 69 项测试：V0/V1 普通回归 54 项、纯协议 15 项，CTest 前缀为 `unit::`。
 `qbook_allocation_tests` 保留分配辅助自测和 F01～F05 共 6 项，前缀为 `allocation::`；
 全局分配替换仅链接到这个专用程序。
@@ -65,16 +70,17 @@ V4 增加 `qbook_metrics_tests` 的 11 项 `metrics::` 测试，服务测试扩�
 | `QBOOK_BUILD_PIPELINE=OFF` | 支持库、核心库、纯协议库及其测试；不查找或构建 ZMQ。 |
 | `QBOOK_BUILD_PERSISTENCE=ON` | 增加 `qbook_storage`、`qbook_writer` 和固定 Arrow/Parquet；这两个库不依赖 ZMQ。默认 OFF。 |
 | `QBOOK_BUILD_SERVICE=ON` | 增加 `qbook_service` 和真实 `qbook`；必须同时显式开启 PIPELINE、PERSISTENCE。默认 OFF。 |
-| `BUILD_TESTING=OFF` | 按能力开关构建生产库和服务；不引入 Catch2、测试辅助、测试驱动或分配替换。 |
+| `BUILD_TESTING=OFF` | 不引入 Catch2、测试驱动或分配替换；可独立构建显式开启的实验，其纯观察/文件核对支撑只链接实验。 |
+| `QBOOK_BUILD_BENCHMARKS=ON` | 默认 OFF；建立独立实验及可选 `benchmark::` 正确性检查，不给普通测试设置机器速度门槛。 |
 
 V2 最终 Debug 结果为 **115/115 通过，0 失败（8.03 秒）**。
 关闭流水线的独立配置通过 75/75 测试，编译命令不含 ZMQ；关闭测试、启用流水线的配置成功构建四个生产库，未引入 Catch2 或测试辅助。
 V2 网络测试在允许创建本机 socket 的授权环境执行；当时受限沙箱中的 EPERM 失败及重跑详情保留于本地 V2 记录。
 V1 的历史 sanitizer 检查覆盖全部 60 项测试，包含分配故障用例并保持泄漏检查开启；V2 不重复这一矩阵。
 `qbook_core` 仅链接 `qlib::qlib`，独立于支持库、日志、网络和文件依赖。
-`QBOOK_BUILD_BENCHMARKS=ON` 仍明确拒绝配置。
+`QBOOK_BUILD_BENCHMARKS=ON` 建立真实 core/protocol 实验；PERSISTENCE 开启时增加 Writer，SERVICE 开启时增加 Pipeline，不自动打开其他能力。实验说明及完整 Release 命令见 [benchmarks/README.md](benchmarks/README.md)，冻结设计见 [V5-experiment.md](docs/benchmarks/V5-experiment.md)。
 
-完整 V4 在开发容器中构建并验收，显式选择容器系统包；此命令也保留 V0～V3 回归：
+完整功能回归在开发容器中显式选择系统包；以下命令覆盖V0～V4，V5本轮已实际执行：
 
 ```bash
 cmake -S . -B build/debug -G Ninja \
@@ -100,7 +106,7 @@ V3 验收于 2026-10-23 实际执行：Debug 154/154（25.30 秒），Release �
 确认缓存、链接命令和全部七个程序的运行库路径不含 `.deps` 后，已删除项目内的旧安装。
 删除后重新配置和增量构建成功，`storage::` / `service::` 再次 **39/39 通过（6.20 秒）**，
 包含 ZSTD Parquet 读回、真实网络及 SIGINT/SIGTERM 停止。随后按用户要求清理了 `build/`；下次按上述命令重新构建。
-本轮未重跑 Release、核心关闭分支或 sanitizer，详情追加在本地 `docs/releases/V3.md`。
+该次V3容器切换未重跑Release、核心关闭分支或sanitizer，详情保留在本地 `docs/releases/V3.md`。
 
 ## 固定依赖
 
@@ -269,7 +275,7 @@ QBOOK_METRICS_ENDPOINT=tcp://127.0.0.1:5556 npm start -- --hostname 0.0.0.0 --po
 两组均每 500 ms 检查状态。修改 `npm start` 的 `NEXT_PUBLIC_` 环境变量不会更新已构建页面。
 显式非法周期显示配置错误，不静默使用默认值。
 
-完整监控测试读取本轮 CMake 生成的 `build/debug/tests/runtime-paths.json`，使用真实发布器、
+完整监控测试默认读取 CMake 生成的 `build/debug/tests/runtime-paths.json`；测试专用 `QBOOK_TEST_BUILD_DIR` 可显式选择另一构建目录（相对仓库根），只使用其自身清单，缺失或引用旧产物明确失败，使用真实发布器、
 服务、Next 生产进程和 Chromium。先完成上述完整 C++ 构建，再在 `ui/` 执行：
 
 ```bash
@@ -327,3 +333,12 @@ Feed 只有 `try_push` 成功才接纳事件；普通停止可以放弃尚未入
 Book 在第 1、1025、2049……条完成应用事件上抽样，计时只包围分发与 Orderbook 调用。
 周期快照保留最近事件时间，暂停行情仍可输出已知空簿，普通停止不补最终快照。
 V2 的有限发布者与 `RecordCollector` 仅供测试，记录在 join 后逐字段核对，`writer_*` 指标保持原有含义。
+
+
+## V5实验与本轮复验
+
+实验实现与命令见[benchmarks/README.md](benchmarks/README.md)，参数和实际初态见[实验设计](docs/benchmarks/V5-experiment.md)，全部成绩、无效轮诊断和FR/NFR/UC/AC证据映射见[结果报告](docs/benchmarks/V5-results.md)。Release打开BENCHMARKS后新增34项`benchmark::`正确性检查，共201项；没有机器速度合格线。核心/协议实验不依赖Arrow/ZMQ/Catch2，Writer需要PERSISTENCE，Pipeline需要SERVICE；BUILD_TESTING=OFF仍可构建所选实验。
+
+本轮最终在新建`build/v5-final`完成201/201、四程序53项smoke，并用`QBOOK_TEST_BUILD_DIR=build/v5-final`通过100ms真实Chromium3/3。此前100/2000ms各自生产build的两组各3/3也已执行，默认配置恢复100ms。该测试变量只选择测试产物，不覆盖生产C++配置。三个无测试隔离配置（纯核心、持久化无网络、完整服务）均实际构建并检查依赖。
+
+原始CSV、manifest、冻结参数、全部失败轮及文件校验摘要保留在本地`results/benchmarks/V5-20261027/`；`docs/releases/V5.md`为本地完整命令记录。系统Arrow/Parquet继续使用`/usr`26.0.0-1，Node24.22.1/npm11.19.1已固定安装在容器`/opt`并提供`/usr/local/bin`命令，UI锁文件未升级；仓库尚无可完全复现容器的Dockerfile/digest。按版本计划清理本轮新建build、UI生成目录和独立浏览器缓存后，使用上述命令重新构建，不能调用已清理的旧程序。

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.28)
-project(qbook VERSION 0.4.0 LANGUAGES CXX)
+project(qbook VERSION 0.5.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -13,9 +13,6 @@ option(QBOOK_BUILD_SERVICE "构建完整 qbook 服务" OFF)
 option(QBOOK_BUILD_BENCHMARKS "构建性能实验" OFF)
 if(QBOOK_BUILD_SERVICE AND (NOT QBOOK_BUILD_PIPELINE OR NOT QBOOK_BUILD_PERSISTENCE))
   message(FATAL_ERROR "QBOOK_BUILD_SERVICE=ON 要求显式同时开启 QBOOK_BUILD_PIPELINE 和 QBOOK_BUILD_PERSISTENCE")
-endif()
-if(QBOOK_BUILD_BENCHMARKS)
-  message(FATAL_ERROR "当前版本尚未实现 benchmark；请设置 QBOOK_BUILD_BENCHMARKS=OFF")
 endif()
 
 # 依赖源码及内容清单随工程保留，配置时无需联网。
@@ -128,6 +125,60 @@ if(QBOOK_BUILD_SERVICE)
   target_compile_options(qbook PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
+if(QBOOK_BUILD_BENCHMARKS)
+  set(qbook_benchmark_targets qbook_core_bench qbook_protocol_bench)
+  # 实验工具与生产库分离；核心/协议实验不引入通信、Arrow 或 Catch2。
+  add_library(qbook_benchmark_support STATIC benchmarks/support/Workloads.cpp
+    benchmarks/support/Measure.cpp benchmarks/support/Results.cpp)
+  target_include_directories(qbook_benchmark_support PUBLIC benchmarks/support)
+  target_link_libraries(qbook_benchmark_support PUBLIC qlib::qlib PRIVATE qbook_yaml)
+  target_compile_definitions(qbook_benchmark_support PRIVATE
+    QBOOK_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+    QBOOK_BUILD_DIR="${CMAKE_BINARY_DIR}")
+  target_compile_options(qbook_benchmark_support PRIVATE -Wall -Wextra -Wpedantic)
+
+  add_library(qbook_core_benchmark_support STATIC benchmarks/support/CoreTrial.cpp)
+  target_include_directories(qbook_core_benchmark_support PRIVATE tests)
+  target_link_libraries(qbook_core_benchmark_support PUBLIC qbook_benchmark_support qbook_core)
+  add_executable(qbook_core_bench benchmarks/core_bench.cpp)
+  target_link_libraries(qbook_core_bench PRIVATE qbook_core_benchmark_support)
+
+  add_library(qbook_protocol_benchmark_support STATIC benchmarks/support/ProtocolTrial.cpp)
+  target_include_directories(qbook_protocol_benchmark_support PRIVATE tests)
+  target_compile_definitions(qbook_protocol_benchmark_support PRIVATE
+    QBOOK_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+    QBOOK_PROTOCOL_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/protocol")
+  target_link_libraries(qbook_protocol_benchmark_support PUBLIC qbook_benchmark_support qbook_protocol)
+  add_executable(qbook_protocol_bench benchmarks/protocol_bench.cpp)
+  target_link_libraries(qbook_protocol_bench PRIVATE qbook_protocol_benchmark_support)
+
+  if(QBOOK_BUILD_PERSISTENCE)
+    # 独立读回器只含 Arrow 核对逻辑，不链接测试断言或分配替换。
+    add_library(qbook_benchmark_readback STATIC tests/support/ParquetReadback.cpp)
+    target_include_directories(qbook_benchmark_readback PUBLIC tests)
+    target_link_libraries(qbook_benchmark_readback PUBLIC qlib::qlib qbook_arrow_dependencies)
+    add_library(qbook_writer_benchmark_support STATIC benchmarks/support/WriterTrial.cpp)
+    target_include_directories(qbook_writer_benchmark_support PUBLIC src)
+    target_link_libraries(qbook_writer_benchmark_support PUBLIC qbook_benchmark_support
+      qbook_storage qbook_benchmark_readback)
+    add_executable(qbook_writer_bench benchmarks/writer_bench.cpp)
+    target_link_libraries(qbook_writer_bench PRIVATE qbook_writer_benchmark_support)
+    list(APPEND qbook_benchmark_targets qbook_writer_bench)
+  endif()
+
+  if(QBOOK_BUILD_SERVICE)
+    add_library(qbook_pipeline_benchmark_support STATIC benchmarks/support/PipelineTrial.cpp
+      tests/support/ProcessHarness.cpp)
+    target_include_directories(qbook_pipeline_benchmark_support PUBLIC src tests)
+    target_link_libraries(qbook_pipeline_benchmark_support PUBLIC qbook_benchmark_support
+      qbook_service qbook_benchmark_readback PRIVATE qbook_yaml qbook_logging)
+    add_executable(qbook_pipeline_bench benchmarks/pipeline_bench.cpp)
+    target_link_libraries(qbook_pipeline_bench PRIVATE qbook_pipeline_benchmark_support)
+    list(APPEND qbook_benchmark_targets qbook_pipeline_bench)
+  endif()
+  message(STATUS "qbook benchmark targets: ${qbook_benchmark_targets}")
+endif()
+
 if(BUILD_TESTING)
   # Catch2 v3.8.1，提交 2b60af89e23d28eefc081bc930831ee9d45ea58b。
   if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/Catch2/extras/Catch.cmake")
@@ -161,6 +212,24 @@ if(BUILD_TESTING)
   target_compile_options(qbook_allocation_tests PRIVATE -Wall -Wextra -Wpedantic)
   catch_discover_tests(qbook_allocation_tests TEST_PREFIX "allocation::"
     PROPERTIES TIMEOUT 30)
+
+  if(QBOOK_BUILD_BENCHMARKS)
+    add_executable(qbook_benchmark_checks tests/benchmark_checks.cpp)
+    target_include_directories(qbook_benchmark_checks PRIVATE tests)
+    target_link_libraries(qbook_benchmark_checks PRIVATE qbook_core_benchmark_support
+      qbook_protocol_benchmark_support Catch2::Catch2WithMain)
+    if(QBOOK_BUILD_PERSISTENCE)
+      target_sources(qbook_benchmark_checks PRIVATE tests/writer_benchmark_checks.cpp
+        tests/support/FailingOutputStream.cpp)
+      target_link_libraries(qbook_benchmark_checks PRIVATE qbook_writer_benchmark_support qbook_support)
+    endif()
+    if(QBOOK_BUILD_SERVICE)
+      target_sources(qbook_benchmark_checks PRIVATE tests/pipeline_benchmark_checks.cpp)
+      target_link_libraries(qbook_benchmark_checks PRIVATE qbook_pipeline_benchmark_support)
+    endif()
+    target_compile_options(qbook_benchmark_checks PRIVATE -Wall -Wextra -Wpedantic)
+    catch_discover_tests(qbook_benchmark_checks TEST_PREFIX "benchmark::" PROPERTIES TIMEOUT 60)
+  endif()
 
   add_executable(qbook_metrics_fixture_generator tests/metrics_fixture_generator.cpp)
   target_include_directories(qbook_metrics_fixture_generator PRIVATE src tests)

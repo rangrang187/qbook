@@ -11,6 +11,8 @@ export const outputRoot = process.env.QBOOK_E2E_OUTPUT!;
 export const runtime: Record<string, string> = JSON.parse(
   await readFile(process.env.QBOOK_RUNTIME_PATHS!, "utf8"));
 const active = new Set<ManagedProcess>();
+const owned = new Set<ManagedProcess>();
+let processSequence = 0;
 
 export async function until<T>(read: () => T | Promise<T>, accept: (value: T) => boolean,
   label: string, timeout = 20_000): Promise<T> {
@@ -29,10 +31,17 @@ export class ManagedProcess {
   output = "";
   result: { code: number | null; signal: string | null } | null = null;
   failure: Error | null = null;
+  readonly diagnostics: Record<string, unknown>[] = [];
+  evidence: Promise<void> = Promise.resolve();
+  evidenceFailure: unknown = null;
   constructor(readonly name: string, executable: string, args: string[], cwd = uiRoot,
     env: Partial<NodeJS.ProcessEnv> = {}) {
+    const sequence = ++processSequence;
+    const started = performance.now();
+    const startedAt = new Date().toISOString();
     this.child = spawn(executable, args, { cwd, env: { ...process.env, ...env }, stdio: "pipe" });
     active.add(this);
+    owned.add(this);
     const capture = (chunk: Buffer) => {
       this.output += chunk.toString("utf8");
       if (this.output.length > 1_000_000) {
@@ -45,17 +54,32 @@ export class ManagedProcess {
     this.child.stderr.on("data", capture);
     this.child.stdin.on("error", error => { this.failure = error; });
     this.exited = new Promise(resolve => {
+      const finish = (result: { code: number | null; signal: string | null }) => {
+        if (this.result) return;
+        this.result = result;
+        active.delete(this);
+        const elapsedMs = performance.now() - started;
+        const output = this.output;
+        // 仅本次拥有的子进程；不保存完整环境变量，也不以日志代替文件核对。
+        this.evidence = (async () => {
+          const directory = path.join(outputRoot, "owned-processes");
+          await mkdir(directory, { recursive: true });
+          const stem = `${process.pid}-${sequence}-${name.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+          await writeFile(path.join(directory, `${stem}.log`), output, { flag: "wx" });
+          await writeFile(path.join(directory, `${stem}.json`), JSON.stringify({
+            name, pid: this.child.pid ?? null, executable, args, cwd, startedAt, elapsedMs,
+            result, failure: this.failure?.message ?? null, diagnostics: this.diagnostics,
+          }, null, 2) + "\n", { flag: "wx" });
+        })().catch(error => { this.evidenceFailure = error; });
+        resolve(result);
+      };
       this.child.once("error", error => {
         this.failure = error;
-        this.result = { code: -1, signal: null };
-        active.delete(this);
-        resolve(this.result);
+        finish({ code: -1, signal: null });
       });
       // close 才保证 stdout/stderr 已排空；exit 只表示进程退出。
       this.child.once("close", (code, signal) => {
-        this.result = { code, signal };
-        active.delete(this);
-        resolve(this.result);
+        finish({ code, signal });
       });
     });
   }
@@ -101,7 +125,12 @@ export class ManagedProcess {
 export async function cleanupProcesses() {
   const results = await Promise.allSettled([...active].map(child => child.stop()));
   const failures = results.filter(result => result.status === "rejected");
+  await Promise.all([...owned].map(child => child.evidence));
+  const evidenceFailures = [...owned].filter(child => child.evidenceFailure !== null)
+    .map(child => `${child.name}: ${String(child.evidenceFailure)}`);
+  owned.clear();
   if (failures.length) throw new Error(`cleanup failed: ${JSON.stringify(failures)}`);
+  if (evidenceFailures.length) throw new Error(`process evidence failed: ${evidenceFailures.join("; ")}`);
 }
 
 export async function resources(process: ManagedProcess) {
@@ -125,17 +154,35 @@ export async function nextServer(endpoint: string, fixedPort?: number) {
     const child = new ManagedProcess("next", process.execPath,
       [path.join(uiRoot, "node_modules/next/dist/bin/next"), "start", "--hostname", "127.0.0.1", "--port", String(port)],
       uiRoot, { QBOOK_METRICS_ENDPOINT: endpoint, NEXT_TELEMETRY_DISABLED: "1" });
+    const start = performance.now();
+    const url = `http://127.0.0.1:${port}`;
+    let stage = "Ready log";
+    let readyMs: number | null = null;
+    let headersMs: number | null = null;
+    let status: number | null = null;
     try {
       await child.wait(/Ready in/);
-      const url = `http://127.0.0.1:${port}`;
+      readyMs = performance.now() - start;
+      stage = "HTTP headers";
       const response = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+      headersMs = performance.now() - start;
+      status = response.status;
       if (!response.ok) throw new Error(`Next page HTTP ${response.status}`);
+      stage = "HTTP body";
       await response.arrayBuffer();
+      child.diagnostics.push({ kind: "readiness", url, stage: "complete", readyMs, headersMs,
+        completeMs: performance.now() - start, status, httpTimeoutMs: 10_000 });
       return { child, url, port };
     } catch (error) {
+      const elapsedMs = performance.now() - start;
+      const cause = error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : { message: String(error) };
+      child.diagnostics.push({ kind: "readiness", url, stage, readyMs, headersMs,
+        elapsedMs, status, httpTimeoutMs: 10_000, error: cause });
       await child.stop();
       if (!fixedPort && child.output.includes("EADDRINUSE")) continue;
-      throw error;
+      throw new Error(`Next readiness failed at ${stage}: ${url}; elapsed=${elapsedMs.toFixed(1)}ms; ` +
+        `ready=${readyMs ?? "none"}ms; headers=${headersMs ?? "none"}ms; cause=${cause.message}\n${child.output}`,
+      { cause: error });
     }
   }
   throw new Error("Next could not bind any candidate port");

@@ -164,6 +164,11 @@ void ProcessHarness::Pump() {
   Reap();
 }
 
+void ProcessHarness::Poll() {
+  if (!started_) throw std::logic_error("子进程尚未启动");
+  Pump();
+}
+
 void ProcessHarness::WaitForOutput(std::string_view marker, Deadline deadline) {
   if (!started_) throw std::logic_error("子进程尚未启动");
   for (;;) {

@@ -18,7 +18,7 @@ npm run test:unit
 
 本次版本选择核对了官方 [Node 24.22.1 LTS 安全发布](https://nodejs.org/en/blog/release/v24.22.1)、[Next 2026-10-14 安全更新](https://nextjs.org/blog/nextjs-security-update-october-14-2026)、[React 官方更新](https://react.dev/blog)、[TypeScript 7 正式发布](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/)、[Vitest 5](https://vitest.dev/blog/vitest-5.html)、[Playwright 发布记录](https://playwright.dev/docs/release-notes) 和 [zeromq Subscriber 契约](https://zeromq.github.io/zeromq.js/classes/Subscriber.html)，并以 npm 官方 registry 元数据和安装后的实际程序核实版本。
 
-本轮开始时开发容器没有独立 Node/npm。本轮从 [官方固定归档](https://nodejs.org/dist/v24.22.1/node-v24.22.1-linux-x64.tar.xz) 下载并按同版本 `SHASUMS256.txt` 校验 SHA-256：`6c172a9ab6718f7b801fb5a7bd486af2ee5e32758086a04b84fcce2aa77095e6`，随后正式安装到容器 `/opt/node-v24.22.1-linux-x64`，由 `/usr/local/bin/node`、`npm`、`npx`、`corepack` 链接提供命令。`build/v4-tools` 仅为本轮可清理的下载/探测目录；删除它不影响容器已安装的工具。现有 `cpp-dev:latest` 没有仓库内 Dockerfile 或固定 digest，这些容器内安装尚未成为可单独复现整个环境的镜像构建配置。
+V4 开始时开发容器没有独立 Node/npm。V4 从 [官方固定归档](https://nodejs.org/dist/v24.22.1/node-v24.22.1-linux-x64.tar.xz) 下载并按同版本 `SHASUMS256.txt` 校验 SHA-256：`6c172a9ab6718f7b801fb5a7bd486af2ee5e32758086a04b84fcce2aa77095e6`，随后正式安装到容器 `/opt/node-v24.22.1-linux-x64`，由 `/usr/local/bin/node`、`npm`、`npx`、`corepack` 链接提供命令。`build/v4-tools` 仅为本轮可清理的下载/探测目录；删除它不影响容器已安装的工具。现有 `cpp-dev:latest` 没有仓库内 Dockerfile 或固定 digest，这些容器内安装尚未成为可单独复现整个环境的镜像构建配置。
 
 ## 配置与运行
 
@@ -53,27 +53,42 @@ Feed/Writer 的 orders 包含撤单；本地逐笔挂单数在 L2 为 0；内存
 
 协议与清理回归包含 C++ 六组固定样本、非法 DTO、慢读者只保留近期值、部分初始化失败、重复取消、原生 ZMQ 等待接收时关闭，以及 20 个独立请求只共用一组进程停止监听。真实 HTTP 验证还逐项核对了 17 个字段，并在 8 轮请求取消后观察 XPUB 订阅数回到 0；另在 4 个活跃 SSE 未先取消时验证 Node SIGINT/SIGTERM 能结束并释放全部订阅。这些 HTTP 结果不代替真实浏览器验收。
 
-C++ 固定二进制与独立字符串期望共用根目录 `tests/fixtures/metrics/`。先完成根目录完整构建，生成 `build/debug/tests/runtime-paths.json`，再运行：
+C++ 固定二进制与独立字符串期望共用根目录 `tests/fixtures/metrics/`。先完成根目录完整构建，生成 `build/debug/tests/runtime-paths.json`。测试专用 `QBOOK_TEST_BUILD_DIR` 默认选择仓库的 `build/debug`；显式设置时只读取该目录自己的 `tests/runtime-paths.json`，检查程序确实属于所选构建且可执行，缺失或旧路径清单明确失败，不回退。相对值以仓库根解析，也接受绝对路径；它不覆盖生产 C++ 配置。每次浏览器结果保存在所选构建的 `monitoring-100/` 或 `monitoring-2000/` 独占子目录。
 
 首次安装 Chromium 及其 Linux 运行库时，使用与锁文件相同的 Playwright 1.64.1：
 
 ```bash
 # install-deps 需要容器系统包安装权限；不修改 C++ 固定依赖。
 npx playwright install-deps chromium
-PLAYWRIGHT_BROWSERS_PATH=../build/v4-tools/browser-cache npx playwright install chromium
+PLAYWRIGHT_BROWSERS_PATH=/tmp/qbook-v5-browser-cache npx playwright install chromium
 ```
 
 本轮浏览器为 Chromium 156.0.8078.4；使用上述独立缓存，不清理用户全局浏览器缓存。浏览器下载成功不代表运行库已齐全，缺少系统库时需先完成官方 `install-deps`，再实际启动浏览器。以下测试命令同样从 `ui/` 执行，显式沿用安装时的浏览器缓存路径：
 
 ```bash
 NEXT_PUBLIC_METRICS_SAMPLE_PERIOD_MS=100 npm run build
-PLAYWRIGHT_BROWSERS_PATH=../build/v4-tools/browser-cache \
+PLAYWRIGHT_BROWSERS_PATH=/tmp/qbook-v5-browser-cache \
   QBOOK_E2E_SAMPLE_PERIOD_MS=100 npm run test:e2e
 NEXT_PUBLIC_METRICS_SAMPLE_PERIOD_MS=2000 npm run build
-PLAYWRIGHT_BROWSERS_PATH=../build/v4-tools/browser-cache \
+PLAYWRIGHT_BROWSERS_PATH=/tmp/qbook-v5-browser-cache \
   QBOOK_E2E_SAMPLE_PERIOD_MS=2000 npm run test:e2e
 # 验收后恢复默认页面配置。
 NEXT_PUBLIC_METRICS_SAMPLE_PERIOD_MS=100 npm run build
 ```
 
-编排器使用当前构建中的真实服务、固定发布器和文件读取器，启动已构建的 Next 生产服务并运行 Chromium；它不执行 UI 构建。每组必须先按配对周期重新 build，不能复用另一周期的浏览器代码。准确命令、浏览器版本和本轮实际结果记录于本地 `docs/releases/V4.md`。测试数据、浏览器下载、`node_modules`、`.next` 和构建输出不提交。
+编排器使用当前构建中的真实服务、固定发布器和文件读取器，启动已构建的 Next 生产服务并运行 Chromium；它不执行 UI 构建。每组必须先按配对周期重新 build，不能复用另一周期的浏览器代码。V4历史结果记录于本地 `docs/releases/V4.md`；V5重新安装和实际复验另记 `docs/releases/V5.md`。测试数据、浏览器下载、`node_modules`、`.next` 和构建输出不提交。
+
+例如对本轮全新 Release 构建复验（先按该目录实际 CMake 配置完整构建，并保持页面为 100 ms）：
+
+```bash
+PLAYWRIGHT_BROWSERS_PATH=/tmp/qbook-v5-browser-cache \
+  QBOOK_TEST_BUILD_DIR=build/v5-final \
+  QBOOK_E2E_SAMPLE_PERIOD_MS=100 npm run test:e2e
+```
+
+`build/v5-final` 是示例，须替换为本轮实际新建目录；不使用其他构建中的遗留程序。路径选择工具可在仓库根独立验证：`node --test tests/test_monitoring_build.mjs`。
+
+V5为每个验收子进程保存有限日志、PID、退出结果和Next HTTP就绪各阶段时间，位于本轮输出的 `owned-processes/`。就绪失败仍失败，不通过延长期限或跳过浏览器判据处理。
+
+
+V5实际环境恢复：当前容器起初没有V4历史所记Node安装，已从同一官方归档恢复并再次核对上述SHA-256，安装至`/opt/node-v24.22.1-linux-x64`、命令在`/usr/local/bin`。锁文件及框架版本未变。Chromium系统库通过Playwright官方安装步骤补齐；Ubuntu HTTP源失败时使用临时HTTPS源配置，未改原源或关闭签名检查。100/2000ms本轮各3/3通过，默认恢复100ms；最终新构建结果及失败记录见本地`docs/releases/V5.md`与[报告](../docs/benchmarks/V5-results.md)。缓存路径只是本次选择，清理后运行上述install命令重建；不要把已下载浏览器当成系统运行库齐全的证明。

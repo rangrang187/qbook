@@ -13,7 +13,8 @@
   "customizations": {
     "vscode": {
       "extensions": [
-        "openai.chatgpt"
+        "openai.chatgpt",
+        "llvm-vs-code-extensions.vscode-clangd"
       ]
     }
   }

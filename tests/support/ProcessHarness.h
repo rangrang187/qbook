@@ -31,6 +31,8 @@ public:
   const std::filesystem::path& Directory() const noexcept { return directory_; }
   void WriteConfig(std::string_view yaml);
   void Start();
+  // 非阻塞回收输出与退出状态，供有限速率发布者在调度时轮询。
+  void Poll();
   void WaitForOutput(std::string_view marker, Deadline deadline);
   void SendSignal(int signal);
   const ProcessResult& Wait(Deadline deadline);
